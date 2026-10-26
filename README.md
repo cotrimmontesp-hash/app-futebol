@@ -6,6 +6,8 @@ A estrela ao lado do time marca um favorito neste aparelho. Em **Favoritos**, na
 
 Os nomes usuais saem em português (Bayern de Munique, Atlético de Madri, Inter de Milão, PSG). Manchester United e os demais sem tradução ficam como a ESPN envia. Um favorito salvo com o nome antigo continua valendo.
 
+O escudo do time, quando a ESPN envia, aparece ao lado do nome na tabela, nos jogos e em Favoritos. Se não houver imagem ou ela falhar, fica só o nome.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```

@@ -32,6 +32,10 @@ function migrarFavoritos(times) {
   }
   if (mudou) salvarFavoritos();
 }
+function imgEscudo(url, nome) {
+  if (!url) return '';
+  return `<img class="escudo" loading="lazy" alt="${esc(nome)}" src="${esc(url)}" onerror="this.remove()">`;
+}
 function botaoEstrela(t) {
   const nome = t.time;
   const origem = t.origem || '';
@@ -71,7 +75,7 @@ function htmlTabela(d) {
     const linhas = g.linhas.map(l => {
       if (l.nota) legendas.set(l.nota.texto, l.nota.cor);
       return `<tr><td class="pos" style="border-left-color:${l.nota ? esc(l.nota.cor) : 'transparent'}">${l.pos ?? ''}</td>
-        <td class="time">${botaoEstrela(l)}${l.escudo ? `<img class="escudo" loading="lazy" src="${esc(l.escudo)}" alt="">` : ''}${esc(l.time)}</td>
+        <td class="time">${botaoEstrela(l)}${imgEscudo(l.escudo, l.time)}${esc(l.time)}</td>
         <td class="pts">${esc(l.pts)}</td><td>${esc(l.j)}</td><td>${esc(l.v)}</td><td>${esc(l.e)}</td><td>${esc(l.d)}</td>
         <td class="col-opt">${esc(l.gp)}</td><td class="col-opt">${esc(l.gc)}</td><td>${esc(l.sg)}</td></tr>`;
     }).join('');
@@ -95,7 +99,7 @@ function htmlJogos(lista, tipo) {
     const lado = (t, cls) => {
       const nome = `<span>${esc(t.time)}</span>`;
       const marca = botaoEstrela(t);
-      const brasao = t.escudo ? `<img class="escudo" loading="lazy" src="${esc(t.escudo)}" alt="">` : '';
+      const brasao = imgEscudo(t.escudo, t.time);
       const miolo = cls === 'casa' ? `${brasao}${nome}${marca}` : `${marca}${nome}${brasao}`;
       return `<div class="lado ${cls} ${t.venceu ? 'venceu' : ''}">${miolo}</div>`;
     };
