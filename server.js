@@ -202,6 +202,14 @@ function fase(c, temporada) {
   return partes.join(' · ');
 }
 
+function relogioDe(status) {
+  const st = (status && status.type) || {};
+  const clock = String((status && status.displayClock) || '').trim();
+  if (st.name === 'STATUS_HALFTIME') return 'Intervalo';
+  if (clock) return clock;
+  if (st.state === 'in') return String(st.shortDetail || st.detail || '').trim();
+  return clock;
+}
 function jogo(ev) {
   const c = ev.competitions[0];
   const st = ev.status.type;
@@ -215,10 +223,50 @@ function jogo(ev) {
   };
   return {
     id: ev.id, data: ev.date, estado: st.state, // pre | in | post
-    status: st.name, relogio: ev.status.displayClock,
+    status: st.name, relogio: relogioDe(ev.status),
     casa: lado('home'), fora: lado('away'),
     estadio: c.venue ? c.venue.fullName : '', fase: fase(c, ev.season),
   };
+}
+
+const TZ_BR = 'America/Sao_Paulo';
+const NAO_JOGADOS = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED'];
+function ymdBrasilia(date) {
+  const partes = new Intl.DateTimeFormat('en-CA', { timeZone: TZ_BR, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const p = tipo => partes.find(x => x.type === tipo).value;
+  return `${p('year')}${p('month')}${p('day')}`;
+}
+function diaBrasilia(date) {
+  const ymd = ymdBrasilia(date);
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+}
+function deslocarYmd(ymd, dias) {
+  const dt = new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8) + dias, 12));
+  return `${dt.getUTCFullYear()}${String(dt.getUTCMonth() + 1).padStart(2, '0')}${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+async function hoje() {
+  const hojeYmd = ymdBrasilia(new Date());
+  const alvo = diaBrasilia(new Date());
+  const datas = [-1, 0, 1].map(d => deslocarYmd(hojeYmd, d));
+  const tarefas = COMPETICOES.flatMap(c => datas.map(data => {
+    const url = `${ESPN}/site/v2/sports/soccer/${c.id}/scoreboard?dates=${data}&limit=100`;
+    return espn(url, 30e3).then(r => ({ c, events: (r && r.events) || [] })).catch(() => null);
+  }));
+  const res = await Promise.all(tarefas);
+  if (res.every(r => r === null)) throw new Error('ESPN indisponível');
+  const mapa = new Map();
+  for (const r of res) {
+    if (!r) continue;
+    for (const ev of r.events) {
+      if (!ev || !ev.date || !ev.status || !ev.status.type || !ev.competitions || !ev.competitions[0]) continue;
+      if (diaBrasilia(new Date(ev.date)) !== alvo) continue;
+      const j = jogo(ev);
+      if (NAO_JOGADOS.includes(j.status) || !['pre', 'in', 'post'].includes(j.estado)) continue;
+      mapa.set(String(ev.id), { ...j, liga: r.c.id, competicao: r.c.nome });
+    }
+  }
+  const jogosLista = [...mapa.values()].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  return { jogos: jogosLista, atualizadoEm: new Date().toISOString() };
 }
 
 async function jogos(id) {
@@ -229,10 +277,9 @@ async function jogos(id) {
   const mapa = new Map();
   res.forEach(r => (r && r.events || []).forEach(ev => mapa.set(ev.id, jogo(ev))));
   const todos = [...mapa.values()];
-  const naoJogados = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED'];
   const resultados = todos.filter(j => j.estado === 'post' || j.estado === 'in')
     .sort((a, b) => b.data.localeCompare(a.data)).slice(0, 60);
-  const proximos = todos.filter(j => j.estado === 'pre' && !naoJogados.includes(j.status))
+  const proximos = todos.filter(j => j.estado === 'pre' && !NAO_JOGADOS.includes(j.status))
     .sort((a, b) => a.data.localeCompare(b.data)).slice(0, 60);
   return { resultados, proximos, atualizadoEm: new Date().toISOString() };
 }
@@ -250,6 +297,7 @@ http.createServer(async (req, res) => {
   const p = decodeURIComponent(url.pathname);
   try {
     if (p === '/api/competicoes') return json(res, 200, COMPETICOES);
+    if (p === '/api/hoje') return json(res, 200, await hoje());
     const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos)$/);
     if (m) {
       if (!IDS.has(m[1])) return json(res, 404, { erro: 'Competição não encontrada' });

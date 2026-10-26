@@ -29,6 +29,13 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Toque no jogo abre a tela Escalação. Antes de a ESPN divulgar, a mensagem é: "Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo)". Com a tela aberta, o app consulta de novo a cada 5 minutos e para ao sair. Sem notificação.
 - Não existe escalação provável gratuita: o dado só aparece perto da hora do jogo.
 
+## Hoje (etapa 7)
+- Rota `/api/hoje` (cache de cerca de 30 s) junta, das 10 competições, os jogos cujo apito cai no dia atual no fuso America/Sao_Paulo. Consulta o scoreboard diário da ESPN em paralelo (o dia de Brasília e o dia anterior e o seguinte, para não perder jogo na virada do fuso) e fica só com o que é hoje em Brasília.
+- Por jogo: competição, horário, estado (`pre` agendado, `in` ao vivo, `post` encerrado), placar, minuto (`relogio`; intervalo vira "Intervalo"), times com nome traduzido e escudo.
+- Opção **Hoje** em destaque na tela inicial. Seções, nesta ordem: Ao vivo agora (placar e minuto), Hoje (horário HH:MM de Brasília) e Encerrados hoje. Sem jogos no dia, a tela avisa. Dentro de cada seção, jogos de times favoritos vêm primeiro. Toque no jogo abre a escalação; estrela e escudo continuam.
+- Com a tela aberta, atualiza a cada 30 s se houver jogo ao vivo e a cada 5 min caso contrário. Ao sair, a atualização para. Sem notificação.
+- Nas listas de cada competição, jogo ao vivo continua com placar e minuto (o mesmo `relogio`). O horário exibido usa America/Sao_Paulo, mesmo se o aparelho estiver em outro fuso.
+
 ## Fora do MVP (não fazer agora)
 Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -40,10 +47,10 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
-- `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
+- `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
 - `public/`: HTML/CSS/JS puro, `manifest.webmanifest`, `sw.js` (service worker: app abre offline e mostra os últimos dados vistos), ícones.
-- Horários convertidos para America/Sao_Paulo no navegador; textos em pt-BR.
-- Rotas da API: `/api/competicoes`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
+- Horários convertidos para America/Sao_Paulo no navegador (o fuso do aparelho não muda o horário); textos em pt-BR.
+- Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
 
 ## Andamento
 - 25/10 21:35: Paulo confirmou MVP e pediu incluir Libertadores e Sul-Americana. Construção iniciada.
@@ -53,6 +60,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Nomes usuais em português na tabela e nos jogos (mapa `TIMES`). Favorito salvo com o nome antigo da ESPN não se perde. Cache do service worker: `futebol-v4`.
 - 26/10: Escudos dos times na tabela, nos jogos e em Favoritos (`escudo` na API). Imagem que falha some e fica o nome. Cache do service worker: `futebol-v5`.
 - 26/10: Escalação oficial ao tocar no jogo. Se ainda não saiu, a tela avisa e reconsulta a cada 5 minutos. Cache do service worker: `futebol-v6`.
+- 26/10: Tela Hoje com placar ao vivo e jogos do dia em Brasília. Atualiza sozinha enquanto a tela está aberta. Cache do service worker: `futebol-v7`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
