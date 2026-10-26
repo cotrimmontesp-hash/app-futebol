@@ -4,6 +4,8 @@ Tabela, resultados e próximos jogos de 10 competições (Brasileirão, Copa do 
 
 A estrela ao lado do time marca um favorito neste aparelho. Em **Favoritos**, na tela inicial, aparecem os resultados e os próximos jogos desses times em todas as competições.
 
+Os nomes usuais saem em português (Bayern de Munique, Atlético de Madri, Inter de Milão, PSG). Manchester United e os demais sem tradução ficam como a ESPN envia. Um favorito salvo com o nome antigo continua valendo.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```

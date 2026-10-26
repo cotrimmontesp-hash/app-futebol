@@ -10,9 +10,14 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 
 ## Favoritos (etapa 3)
 - Estrela ao lado de cada time na tabela e nas listas de jogos. Toque marca ou desmarca.
-- Salvos só no `localStorage` do aparelho (chave `futebol-favoritos`), pelo nome curto do time. Sem conta e sem gravar no servidor.
+- Salvos só no `localStorage` do aparelho (chave `futebol-favoritos`), pelo nome exibido. Sem conta e sem gravar no servidor. Se o nome foi traduzido, o valor antigo (nome curto da ESPN) continua reconhecido e passa a ser gravado com o nome novo.
 - Opção **Favoritos** na tela inicial: resultados e próximos jogos, de todas as competições, apenas dos times marcados. Sem nenhum favorito, a tela explica para tocar na estrela.
 - Fora desta etapa: notificações e login.
+
+## Nomes em português (etapa 4)
+- `server.js` traduz o nome curto da ESPN para o nome usual no Brasil (mapa `TIMES`) na tabela e nos jogos. Exemplos: Bayern Munich → Bayern de Munique, Atlético Madrid → Atlético de Madri, Inter Milan → Inter de Milão, Paris Saint-Germain → PSG. Manchester United permanece Manchester United.
+- Sem entrada no mapa, o nome original é mantido. Vale para as 10 competições (ligas europeias, Champions, Libertadores e Sul-Americana).
+- Favorito antigo, gravado com o nome de antes da tradução, continua marcado: o app compara também esse nome (`origem`) e regrava o nome novo.
 
 ## Fora do MVP (não fazer agora)
 Notificações, login, estatísticas de jogadores, Android/iOS nativo.
@@ -22,7 +27,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
   - Testada em 25/10/2026 e com a Copa do Brasil em 26/10/2026: cobre as 10 competições (tabela + jogos). Códigos: bra.1, bra.copa_do_brazil, eng.1, esp.1, ita.1, ger.1, fra.1, uefa.champions, conmebol.libertadores, conmebol.sudamericana.
   - Tabela: `/apis/v2/sports/soccer/{liga}/standings`. Jogos: `/apis/site/v2/sports/soccer/{liga}/scoreboard?dates=AAAAMM` (por mês; intervalo de datas AAAAMMDD-AAAAMMDD retornou erro 400 no teste).
 - Descartadas: football-data.org (exige chave; pela documentação, o plano grátis não inclui Libertadores/Sul-Americana — não testado) e TheSportsDB (não testada a fundo, pois a ESPN já cobre tudo sem chave).
-- Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes dos times em inglês/forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
+- Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
 - `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
@@ -35,6 +40,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - 25/10 ~21:47: MVP pronto e testado na box (porta 3000). Teste: as 9 competições carregaram Tabela, Resultados e Próximos jogos (via curl e renderização com jsdom). Nenhuma falhou.
 - 26/10: Copa do Brasil incluída (`bra.copa_do_brazil`). Standings vem vazio; a aba Tabela mostra aviso de mata-mata. A rota da API passa a aceitar underscore no id.
 - 26/10: Favoritos no aparelho. Estrela na tabela e nos jogos; a opção Favoritos junta resultados e próximos de todas as competições. Cache do service worker: `futebol-v3`.
+- 26/10: Nomes usuais em português na tabela e nos jogos (mapa `TIMES`). Favorito salvo com o nome antigo da ESPN não se perde. Cache do service worker: `futebol-v4`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
