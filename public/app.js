@@ -24,11 +24,12 @@ async function telaLista() {
   const bloco = (t, l) => `<h2 class="secao">${t}</h2><ul class="lista">${l.map(c =>
     `<li><a href="#/c/${c.id}/tabela"><strong>${esc(c.nome)}</strong><span>${esc(c.pais)}</span></a></li>`).join('')}</ul>`;
   conteudo.innerHTML = bloco('Ligas nacionais', competicoes.filter(c => c.tipo === 'liga'))
-    + bloco('Copas continentais', competicoes.filter(c => c.tipo === 'copa'));
+    + bloco('Copas', competicoes.filter(c => c.tipo === 'copa'));
 }
 
 function htmlTabela(d) {
-  if (!d.grupos.length || d.grupos.every(g => !g.linhas.length)) return '<p class="msg">Tabela indisponível para esta competição no momento.</p>';
+  if (d.semTabela || !d.grupos || !d.grupos.length || d.grupos.every(g => !g.linhas.length))
+    return '<p class="msg">Esta competição é mata-mata e não tem tabela. Veja Resultados e Próximos jogos.</p>';
   const legendas = new Map();
   const grupos = d.grupos.map(g => {
     const linhas = g.linhas.map(l => {
@@ -81,7 +82,7 @@ async function telaCompeticao(id, aba) {
 }
 
 async function rota() {
-  const m = location.hash.match(/^#\/c\/([a-z0-9.]+)\/(tabela|resultados|proximos)$/);
+  const m = location.hash.match(/^#\/c\/([a-z0-9._]+)\/(tabela|resultados|proximos)$/);
   try { m ? await telaCompeticao(m[1], m[2]) : await telaLista(); window.scrollTo(0, 0); }
   catch (e) { erro(e); }
 }

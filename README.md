@@ -1,6 +1,6 @@
 # App Futebol (MVP)
 
-Tabela, resultados e próximos jogos de 9 competições (Brasileirão, Libertadores, Sul-Americana, Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League). Funciona como app no celular (PWA).
+Tabela, resultados e próximos jogos de 10 competições (Brasileirão, Copa do Brasil, Libertadores, Sul-Americana, Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League). Funciona como app no celular (PWA).
 
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).

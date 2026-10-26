@@ -10,6 +10,7 @@ const ESPN = 'https://site.api.espn.com/apis';
 
 const COMPETICOES = [
   { id: 'bra.1', nome: 'Brasileirão Série A', pais: 'Brasil', tipo: 'liga' },
+  { id: 'bra.copa_do_brazil', nome: 'Copa do Brasil', pais: 'Brasil', tipo: 'copa' },
   { id: 'conmebol.libertadores', nome: 'Copa Libertadores', pais: 'América do Sul', tipo: 'copa' },
   { id: 'conmebol.sudamericana', nome: 'Copa Sul-Americana', pais: 'América do Sul', tipo: 'copa' },
   { id: 'eng.1', nome: 'Premier League', pais: 'Inglaterra', tipo: 'liga' },
@@ -57,10 +58,20 @@ function stat(e, nome) {
 }
 
 async function tabela(id) {
-  const d = await espn(`${ESPN}/v2/sports/soccer/${id}/standings`, 10 * 60e3);
-  const grupos = (d.children || []).map(g => ({
-    nome: (d.children.length > 1) ? GRUPOS(g.name) : '',
-    linhas: (g.standings.entries || []).map(e => ({
+  let d;
+  try {
+    d = await espn(`${ESPN}/v2/sports/soccer/${id}/standings`, 10 * 60e3);
+  } catch (e) {
+    // Mata-mata sem classificação na ESPN (4xx) não deve virar erro na aba Tabela.
+    if (/ESPN HTTP 4\d\d/.test(String(e && e.message))) return { temporada: '', grupos: [], semTabela: true };
+    throw e;
+  }
+  const children = Array.isArray(d.children) ? d.children : [];
+  const entradas = g => (g.standings && g.standings.entries) || [];
+  if (!children.some(g => entradas(g).length)) return { temporada: '', grupos: [], semTabela: true };
+  const grupos = children.filter(g => entradas(g).length).map(g => ({
+    nome: (children.length > 1) ? GRUPOS(g.name) : '',
+    linhas: entradas(g).map(e => ({
       pos: Number(stat(e, 'rank')) || null,
       time: (e.team.shortDisplayName || e.team.displayName).trim(),
       escudo: e.team.logos && e.team.logos[0] ? e.team.logos[0].href : '',
@@ -69,7 +80,8 @@ async function tabela(id) {
       nota: e.note ? { cor: e.note.color, texto: NOTAS[e.note.description] || e.note.description } : null,
     })).sort((a, b) => (a.pos || 99) - (b.pos || 99)),
   }));
-  const temporada = d.children && d.children[0] && d.children[0].standings.seasonDisplayName || '';
+  const primeira = children.find(g => g.standings);
+  const temporada = (primeira && primeira.standings.seasonDisplayName) || '';
   return { temporada, grupos };
 }
 
@@ -79,11 +91,17 @@ function mes(offset) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-const FASES = { 'Semifinals': 'Semifinal', 'Final': 'Final', 'Quarterfinals': 'Quartas de final', 'Round of 16': 'Oitavas de final',
-  '1st Leg': 'Ida', '2nd Leg': 'Volta', 'Knockout Round Playoffs': 'Playoffs', 'League Phase': 'Fase de liga' };
-function fase(c) {
+const FASES = { 'Semifinals': 'Semifinal', 'semifinals': 'Semifinal', 'Final': 'Final', 'Finals': 'Final', 'final': 'Final', 'finals': 'Final',
+  'Quarterfinals': 'Quartas de final', 'quarterfinals': 'Quartas de final', 'Round of 16': 'Oitavas de final', 'round-of-16': 'Oitavas de final',
+  '1st Leg': 'Ida', '2nd Leg': 'Volta', 'Knockout Round Playoffs': 'Playoffs', 'League Phase': 'Fase de liga',
+  'First Round': 'Primeira fase', 'first-round': 'Primeira fase', 'Second Round': 'Segunda fase', 'second-round': 'Segunda fase',
+  'Third Round': 'Terceira fase', 'third-round': 'Terceira fase', 'Fourth Round': 'Quarta fase', 'fourth-round': 'Quarta fase',
+  'Fifth Round': 'Quinta fase', 'fifth-round': 'Quinta fase' };
+function fase(c, temporada) {
   const partes = [];
-  if (c.series && c.series.title) partes.push(FASES[c.series.title] || c.series.title);
+  let titulo = c.series && c.series.title;
+  if (!titulo && temporada && FASES[temporada.slug]) titulo = temporada.slug;
+  if (titulo) partes.push(FASES[titulo] || titulo);
   if (c.leg && c.leg.displayValue) partes.push(FASES[c.leg.displayValue] || c.leg.displayValue);
   return partes.join(' · ');
 }
@@ -103,7 +121,7 @@ function jogo(ev) {
     id: ev.id, data: ev.date, estado: st.state, // pre | in | post
     status: st.name, relogio: ev.status.displayClock,
     casa: lado('home'), fora: lado('away'),
-    estadio: c.venue ? c.venue.fullName : '', fase: fase(c),
+    estadio: c.venue ? c.venue.fullName : '', fase: fase(c, ev.season),
   };
 }
 
@@ -136,7 +154,7 @@ http.createServer(async (req, res) => {
   const p = decodeURIComponent(url.pathname);
   try {
     if (p === '/api/competicoes') return json(res, 200, COMPETICOES);
-    const m = p.match(/^\/api\/([a-z0-9.]+)\/(tabela|jogos)$/);
+    const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos)$/);
     if (m) {
       if (!IDS.has(m[1])) return json(res, 404, { erro: 'Competição não encontrada' });
       return json(res, 200, m[2] === 'tabela' ? await tabela(m[1]) : await jogos(m[1]));
