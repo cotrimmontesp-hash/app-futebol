@@ -36,6 +36,57 @@ const NOTAS = {
 };
 const GRUPOS = s => s.replace(/^Group /, 'Grupo ');
 
+// Nome curto/inglês da ESPN -> nome usual no Brasil. Sem entrada, fica o nome original.
+const TIMES = {
+  'Bayern': 'Bayern de Munique', 'Bayern Munich': 'Bayern de Munique',
+  'Atlético': 'Atlético de Madri', 'Atlético Madrid': 'Atlético de Madri', 'Atletico Madrid': 'Atlético de Madri',
+  'Inter Milan': 'Inter de Milão', 'Internazionale': 'Inter de Milão',
+  'Man Utd': 'Manchester United', 'Man City': 'Manchester City',
+  'Paris Saint-Germain': 'PSG',
+  'Spurs': 'Tottenham', 'Tottenham Hotspur': 'Tottenham',
+  'C Palace': 'Crystal Palace', 'Nottm Forest': 'Nottingham Forest',
+  'Dortmund': 'Borussia Dortmund', 'Gladbach': 'Borussia Mönchengladbach',
+  'Leverkusen': 'Bayer Leverkusen', 'Frankfurt': 'Eintracht Frankfurt',
+  'Cologne': 'Colônia', 'FC Cologne': 'Colônia',
+  'Hamburg': 'Hamburgo', 'Hamburg SV': 'Hamburgo',
+  'Bremen': 'Werder Bremen', 'Werder Bremen': 'Werder Bremen',
+  'AS Roma': 'Roma', 'Verona': 'Hellas Verona', 'AC Milan': 'Milan',
+  'Betis': 'Real Betis', 'Rayo': 'Rayo Vallecano', 'Celta Vigo': 'Celta de Vigo',
+  'Valladolid': 'Real Valladolid', 'FC Porto': 'Porto',
+  'Fenerbahce': 'Fenerbahçe', 'Dinamo Zagreb': 'Dínamo Zagreb',
+  'Slavia Prague': 'Slavia Praga', 'Sparta': 'Sparta Praga', 'Sparta Prague': 'Sparta Praga',
+  'Red Star': 'Estrela Vermelha', 'Red Star Belgrade': 'Estrela Vermelha',
+  'S Bratislava': 'Slovan Bratislava', 'Bodo/Glimt': 'Bodø/Glimt',
+  'Marseille': 'Olympique de Marselha', 'Wolves': 'Wolverhampton', 'Wolverhampton Wanderers': 'Wolverhampton',
+  'Shakhtar': 'Shakhtar Donetsk', 'RB Salzburg': 'Red Bull Salzburg',
+  'FK Qarabag': 'Qarabag', 'Union SG': 'Union Saint-Gilloise', 'Union St.-Gilloise': 'Union Saint-Gilloise',
+  'LASK Linz': 'LASK', 'St. Étienne': 'Saint-Étienne', 'Le Havre AC': 'Le Havre',
+  'Boca': 'Boca Juniors', 'Atl. Junior': 'Atlético Junior', 'Atl. Nacional': 'Atlético Nacional',
+  'Ind. del Valle': 'Independiente del Valle', 'Ind. Medellín': 'Independiente Medellín',
+  'Ind. Rivadavia': 'Independiente Rivadavia',
+  'U de Chile': 'Universidad de Chile', 'U Católica': 'Universidad Católica',
+  'U. Católica': 'Católica de Quito', 'Universidad Católica (Quito)': 'Católica de Quito',
+  'Strongest': 'The Strongest', 'Colo Colo': 'Colo-Colo',
+  'Argentinos': 'Argentinos Juniors', 'Def. y Jus.': 'Defensa y Justicia',
+  'CI Petrolero': 'Independiente Petrolero',
+  'C. Córdoba (SE)': 'Central Córdoba', 'Central Córdoba (Santiago del Estero)': 'Central Córdoba',
+  'Dep. Iquique': 'Deportes Iquique', 'N Potosí': 'Nacional Potosí',
+  'Bucaramanga': 'Atlético Bucaramanga', 'América Cali': 'América de Cali',
+  'Santa Fe': 'Independiente Santa Fe', 'Alianza Atl': 'Alianza Atlético',
+  'Coquimbo': 'Coquimbo Unido', 'Cuenca': 'Deportivo Cuenca',
+  'Dep. Recoleta': 'Deportivo Recoleta', 'La Guaira': 'Deportivo La Guaira',
+  'MC Torque': 'Montevideo City Torque', 'Puerto Cabello': 'Academia Puerto Cabello',
+  'Riestra': 'Deportivo Riestra', 'Tolima': 'Deportes Tolima', 'Barracas': 'Barracas Central',
+  'Bulo Bulo': 'San Antonio Bulo Bulo', 'Garcilaso': 'Deportivo Garcilaso',
+  'Univ. de Vinto': 'Universitario de Vinto',
+};
+function nomeTime(team) {
+  const bruto = team ? String(team.shortDisplayName || team.displayName || '').trim() : '';
+  if (!bruto) return { time: '?' };
+  const time = TIMES[bruto] || bruto;
+  return time === bruto ? { time } : { time, origem: bruto };
+}
+
 const cache = new Map();
 async function espn(url, ttlMs) {
   const hit = cache.get(url);
@@ -73,7 +124,7 @@ async function tabela(id) {
     nome: (children.length > 1) ? GRUPOS(g.name) : '',
     linhas: entradas(g).map(e => ({
       pos: Number(stat(e, 'rank')) || null,
-      time: (e.team.shortDisplayName || e.team.displayName).trim(),
+      ...nomeTime(e.team),
       escudo: e.team.logos && e.team.logos[0] ? e.team.logos[0].href : '',
       j: stat(e, 'gamesPlayed'), v: stat(e, 'wins'), e: stat(e, 'ties'), d: stat(e, 'losses'),
       gp: stat(e, 'pointsFor'), gc: stat(e, 'pointsAgainst'), sg: stat(e, 'pointDifferential'), pts: stat(e, 'points'),
@@ -112,7 +163,7 @@ function jogo(ev) {
   const lado = h => {
     const t = c.competitors.find(x => x.homeAway === h) || {};
     return {
-      time: t.team ? (t.team.shortDisplayName || t.team.displayName).trim() : '?',
+      ...nomeTime(t.team),
       escudo: t.team ? t.team.logo : '',
       gols: t.score, penaltis: t.shootoutScore ?? null, venceu: !!t.winner,
     };

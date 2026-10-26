@@ -19,10 +19,25 @@ function salvarFavoritos() {
   try { localStorage.setItem(CHAVE_FAV, JSON.stringify([...favoritos])); } catch { /* aparelho sem espaço ou storage bloqueado */ }
 }
 let favoritos = lerFavoritos();
-function botaoEstrela(nome) {
-  const on = favoritos.has(nome);
+function ehFavorito(t) {
+  return !!(t && (favoritos.has(t.time) || (t.origem && favoritos.has(t.origem))));
+}
+function migrarFavoritos(times) {
+  let mudou = false;
+  for (const t of times) {
+    if (!t || !t.origem || !favoritos.has(t.origem)) continue;
+    favoritos.delete(t.origem);
+    favoritos.add(t.time);
+    mudou = true;
+  }
+  if (mudou) salvarFavoritos();
+}
+function botaoEstrela(t) {
+  const nome = t.time;
+  const origem = t.origem || '';
+  const on = ehFavorito(t);
   const acao = on ? `Remover ${nome} dos favoritos` : `Marcar ${nome} como favorito`;
-  return `<button type="button" class="estrela${on ? ' ativa' : ''}" data-time="${esc(nome)}" aria-pressed="${on}" aria-label="${esc(acao)}">${on ? '★' : '☆'}</button>`;
+  return `<button type="button" class="estrela${on ? ' ativa' : ''}" data-time="${esc(nome)}" data-origem="${esc(origem)}" aria-pressed="${on}" aria-label="${esc(acao)}">${on ? '★' : '☆'}</button>`;
 }
 
 async function api(caminho) {
@@ -51,11 +66,12 @@ function htmlTabela(d) {
   if (d.semTabela || !d.grupos || !d.grupos.length || d.grupos.every(g => !g.linhas.length))
     return '<p class="msg">Esta competição é mata-mata e não tem tabela. Veja Resultados e Próximos jogos.</p>';
   const legendas = new Map();
+  migrarFavoritos(d.grupos.flatMap(g => g.linhas));
   const grupos = d.grupos.map(g => {
     const linhas = g.linhas.map(l => {
       if (l.nota) legendas.set(l.nota.texto, l.nota.cor);
       return `<tr><td class="pos" style="border-left-color:${l.nota ? esc(l.nota.cor) : 'transparent'}">${l.pos ?? ''}</td>
-        <td class="time">${botaoEstrela(l.time)}${l.escudo ? `<img class="escudo" loading="lazy" src="${esc(l.escudo)}" alt="">` : ''}${esc(l.time)}</td>
+        <td class="time">${botaoEstrela(l)}${l.escudo ? `<img class="escudo" loading="lazy" src="${esc(l.escudo)}" alt="">` : ''}${esc(l.time)}</td>
         <td class="pts">${esc(l.pts)}</td><td>${esc(l.j)}</td><td>${esc(l.v)}</td><td>${esc(l.e)}</td><td>${esc(l.d)}</td>
         <td class="col-opt">${esc(l.gp)}</td><td class="col-opt">${esc(l.gc)}</td><td>${esc(l.sg)}</td></tr>`;
     }).join('');
@@ -70,6 +86,7 @@ function htmlTabela(d) {
 
 function htmlJogos(lista, tipo) {
   if (!lista.length) return `<p class="msg">${tipo === 'proximos' ? 'Nenhum jogo marcado nos próximos 2 meses.' : 'Nenhum resultado nos últimos 2 meses.'}</p>`;
+  migrarFavoritos(lista.flatMap(j => [j.casa, j.fora]));
   let html = '', diaAtual = '';
   for (const j of lista) {
     const dt = new Date(j.data);
@@ -77,7 +94,7 @@ function htmlJogos(lista, tipo) {
     if (dia !== diaAtual) { if (diaAtual) html += '</div>'; html += `<h2 class="secao">${esc(dia)}</h2><div class="card">`; diaAtual = dia; }
     const lado = (t, cls) => {
       const nome = `<span>${esc(t.time)}</span>`;
-      const marca = botaoEstrela(t.time);
+      const marca = botaoEstrela(t);
       const brasao = t.escudo ? `<img class="escudo" loading="lazy" src="${esc(t.escudo)}" alt="">` : '';
       const miolo = cls === 'casa' ? `${brasao}${nome}${marca}` : `${marca}${nome}${brasao}`;
       return `<div class="lado ${cls} ${t.venceu ? 'venceu' : ''}">${miolo}</div>`;
@@ -121,7 +138,8 @@ async function telaFavoritos() {
     catch { return { c, d: null }; }
   }));
   if (listas.every(x => !x.d)) throw new Error('Não foi possível carregar os jogos');
-  const ehFav = j => favoritos.has(j.casa.time) || favoritos.has(j.fora.time);
+  migrarFavoritos(listas.flatMap(x => x.d ? [...x.d.resultados, ...x.d.proximos].flatMap(j => [j.casa, j.fora]) : []));
+  const ehFav = j => ehFavorito(j.casa) || ehFavorito(j.fora);
   const resultados = [], proximos = [];
   for (const { c, d } of listas) {
     if (!d) continue;
@@ -152,8 +170,12 @@ conteudo.addEventListener('click', e => {
   if (!b) return;
   e.preventDefault();
   const nome = b.dataset.time;
+  const origem = b.dataset.origem;
   if (!nome) return;
-  if (favoritos.has(nome)) favoritos.delete(nome); else favoritos.add(nome);
+  if (favoritos.has(nome) || (origem && favoritos.has(origem))) {
+    favoritos.delete(nome);
+    if (origem) favoritos.delete(origem);
+  } else favoritos.add(nome);
   salvarFavoritos();
   if (location.hash === '#/favoritos') { rota(); return; }
   document.querySelectorAll('.estrela').forEach(el => {
