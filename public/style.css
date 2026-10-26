@@ -1,0 +1,39 @@
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f2f4f3;color:#1b1f1d}
+.topo{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;background:#0b6e3d;color:#fff;padding:12px 14px;padding-top:max(12px,env(safe-area-inset-top))}
+.topo h1{font-size:1.15rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.voltar{background:none;border:0;color:#fff;font-size:2rem;line-height:1;padding:0 6px;cursor:pointer}
+.abas{position:sticky;top:52px;z-index:2;display:flex;background:#fff;border-bottom:1px solid #dde2df}
+.abas a{flex:1;text-align:center;padding:12px 4px;font-weight:600;font-size:.92rem;color:#5a645f;cursor:pointer;border-bottom:3px solid transparent;text-decoration:none}
+.abas a.ativa{color:#0b6e3d;border-color:#0b6e3d}
+main{max-width:760px;margin:0 auto;padding:12px}
+.lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.lista a{display:flex;flex-direction:column;background:#fff;border-radius:12px;padding:14px 16px;text-decoration:none;color:inherit;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.lista a strong{font-size:1.05rem}
+.lista a span{color:#6b7570;font-size:.85rem;margin-top:2px}
+.secao{margin:16px 4px 6px;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:#6b7570}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{padding:8px 4px;text-align:center;border-bottom:1px solid #eef0ef}
+th{font-size:.75rem;color:#6b7570;font-weight:600}
+td.time{text-align:left;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;max-width:46vw}
+td.pos{width:30px;border-left:4px solid transparent}
+td.pts{font-weight:700}
+img.escudo{width:20px;height:20px;object-fit:contain;flex:none}
+.legenda{padding:8px 12px;font-size:.78rem;color:#4b5550;display:flex;flex-wrap:wrap;gap:6px 14px}
+.legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.jogo{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0ef}
+.jogo:last-child{border-bottom:0}
+.lado{display:flex;align-items:center;gap:6px;min-width:0}
+.lado.fora{justify-content:flex-end;text-align:right}
+.lado span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lado.venceu span{font-weight:700}
+.placar{font-weight:700;font-size:1.05rem;text-align:center;min-width:64px}
+.placar small{display:block;font-weight:500;font-size:.7rem;color:#6b7570}
+.hora{font-weight:600;color:#0b6e3d}
+.info{grid-column:1/-1;font-size:.72rem;color:#6b7570;text-align:center;margin-top:-4px}
+.aovivo{color:#c62828;font-size:.7rem;font-weight:700}
+.msg{text-align:center;color:#6b7570;padding:28px 12px}
+.erro{color:#b42318}
+.rodape{text-align:center;font-size:.72rem;color:#8a938e;padding:12px 12px 24px}
+@media (max-width:420px){.col-opt{display:none}}
