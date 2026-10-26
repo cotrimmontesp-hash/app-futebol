@@ -283,9 +283,9 @@ function numeroNoTexto(texto, re) {
 function liderEstatistica(L) {
   const a = (L && L.athlete) || {};
   const stats = a.statistics;
-  const jogos = numeroEstatistica(stats, 'appearances') ?? numeroNoTexto(L.displayValue, /Matches:\s*(\d+)/);
-  const gols = numeroEstatistica(stats, 'totalGoals') ?? numeroNoTexto(L.displayValue, /Goals:\s*(\d+)/);
-  const assistencias = numeroEstatistica(stats, 'goalAssists') ?? numeroNoTexto(L.displayValue, /Assists:\s*(\d+)/);
+  const jogos = numeroNoTexto(L.displayValue, /Matches:\s*(\d+)/) ?? numeroEstatistica(stats, 'appearances');
+  const gols = numeroNoTexto(L.displayValue, /Goals:\s*(\d+)/) ?? numeroEstatistica(stats, 'totalGoals');
+  const assistencias = numeroNoTexto(L.displayValue, /Assists:\s*(\d+)/) ?? numeroEstatistica(stats, 'goalAssists');
   return {
     nome: String(a.displayName || a.shortName || '').trim() || '?',
     ...nomeTime(a.team),
