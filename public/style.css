@@ -24,7 +24,7 @@ button.estrela{background:none;border:0;padding:0;width:28px;height:28px;cursor:
 button.estrela.ativa{color:#d4a017}
 .legenda{padding:8px 12px;font-size:.78rem;color:#4b5550;display:flex;flex-wrap:wrap;gap:6px 14px}
 .legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
-.jogo{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0ef}
+.jogo{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0ef;cursor:pointer}
 .jogo:last-child{border-bottom:0}
 .lado{display:flex;align-items:center;gap:6px;min-width:0}
 .lado.fora{justify-content:flex-end;text-align:right}
@@ -37,5 +37,15 @@ button.estrela.ativa{color:#d4a017}
 .aovivo{color:#c62828;font-size:.7rem;font-weight:700}
 .msg{text-align:center;color:#6b7570;padding:28px 12px}
 .erro{color:#b42318}
+.escala-time{display:flex;align-items:center;gap:8px;padding:12px 12px 4px}
+.escala-time strong{font-size:1rem}
+.formacao{margin-left:auto;font-weight:700;font-size:.85rem;color:#6b7570}
+.jogador{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid #eef0ef;font-size:.92rem}
+.jogador .num{width:1.6rem;font-weight:700;color:#0b6e3d;flex:none}
+.jogador .pos{width:2.2rem;font-size:.72rem;color:#6b7570;flex:none}
+.jogador .nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subiu,.saiu-tag{margin-left:auto;font-size:.68rem;font-weight:700;flex:none}
+.subiu{color:#0b6e3d}
+.saiu-tag{color:#b42318}
 .rodape{text-align:center;font-size:.72rem;color:#8a938e;padding:12px 12px 24px}
 @media (max-width:420px){.col-opt{display:none}}

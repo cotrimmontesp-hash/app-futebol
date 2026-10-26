@@ -19,6 +19,10 @@ function salvarFavoritos() {
   try { localStorage.setItem(CHAVE_FAV, JSON.stringify([...favoritos])); } catch { /* aparelho sem espaço ou storage bloqueado */ }
 }
 let favoritos = lerFavoritos();
+let timerEscalacao = 0;
+function pararEscalacao() {
+  if (timerEscalacao) { clearInterval(timerEscalacao); timerEscalacao = 0; }
+}
 function ehFavorito(t) {
   return !!(t && (favoritos.has(t.time) || (t.origem && favoritos.has(t.origem))));
 }
@@ -88,7 +92,7 @@ function htmlTabela(d) {
   return aviso + grupos + (leg ? `<div class="card legenda">${leg}</div>` : '') + '<p class="msg" style="padding:4px">P = pontos · J = jogos · V/E/D = vitórias/empates/derrotas · SG = saldo de gols</p>';
 }
 
-function htmlJogos(lista, tipo) {
+function htmlJogos(lista, tipo, liga) {
   if (!lista.length) return `<p class="msg">${tipo === 'proximos' ? 'Nenhum jogo marcado nos próximos 2 meses.' : 'Nenhum resultado nos últimos 2 meses.'}</p>`;
   migrarFavoritos(lista.flatMap(j => [j.casa, j.fora]));
   let html = '', diaAtual = '';
@@ -111,7 +115,8 @@ function htmlJogos(lista, tipo) {
       meio = `${esc(j.casa.gols)} – ${esc(j.fora.gols)}${pen}${vivo}`;
     }
     const info = [j.competicao, j.fase, j.estadio].filter(Boolean).join(' · ');
-    html += `<div class="jogo">${lado(j.casa, 'casa')}<div class="placar">${meio}</div>${lado(j.fora, 'fora')}${info ? `<div class="info">${esc(info)}</div>` : ''}</div>`;
+    const ligaId = j.liga || liga || '';
+    html += `<div class="jogo" role="link" tabindex="0" data-liga="${esc(ligaId)}" data-id="${esc(j.id)}">${lado(j.casa, 'casa')}<div class="placar">${meio}</div>${lado(j.fora, 'fora')}${info ? `<div class="info">${esc(info)}</div>` : ''}</div>`;
   }
   return html + '</div>';
 }
@@ -125,7 +130,41 @@ async function telaCompeticao(id, aba) {
   document.querySelectorAll('#abas a').forEach(a => { a.href = `#/c/${id}/${a.dataset.aba}`; a.classList.toggle('ativa', a.dataset.aba === aba); });
   carregando();
   if (aba === 'tabela') conteudo.innerHTML = htmlTabela(await api(`${id}/tabela`));
-  else { const d = await api(`${id}/jogos`); conteudo.innerHTML = htmlJogos(aba === 'resultados' ? d.resultados : d.proximos, aba); }
+  else { const d = await api(`${id}/jogos`); conteudo.innerHTML = htmlJogos(aba === 'resultados' ? d.resultados : d.proximos, aba, id); }
+}
+
+function htmlListaEscalacao(lista, titulo) {
+  if (!lista.length) return '';
+  const linhas = lista.map(p => {
+    const marca = p.saiu ? '<span class="saiu-tag">saiu</span>' : p.entrou ? '<span class="subiu">entrou</span>' : '';
+    return `<div class="jogador"><span class="num">${esc(p.camisa)}</span><span class="pos">${esc(p.posicao)}</span><span class="nome">${esc(p.nome)}</span>${marca}</div>`;
+  }).join('');
+  return `<h3 class="secao">${titulo}</h3>${linhas}`;
+}
+function htmlEscalacao(d) {
+  if (!d.divulgada) return '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
+  migrarFavoritos(d.times || []);
+  const cards = (d.times || []).map(t => `<section class="card"><div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`).join('');
+  return `<div class="escala">${cards}</div>`;
+}
+async function telaEscalacao(liga, eventId) {
+  const hash = `#/c/${liga}/escalacao/${eventId}`;
+  $('#titulo').textContent = 'Escalação';
+  $('#voltar').hidden = false; $('#abas').hidden = true;
+  const carregar = async (silencioso) => {
+    if (location.hash !== hash) return;
+    try {
+      const d = await api(`${liga}/escalacao/${eventId}`);
+      if (location.hash !== hash) return;
+      if (!(silencioso && !d.divulgada && conteudo.querySelector('.msg'))) conteudo.innerHTML = htmlEscalacao(d);
+      pararEscalacao();
+      if (!d.divulgada) timerEscalacao = setInterval(() => carregar(true), 5 * 60 * 1000);
+    } catch (e) {
+      if (location.hash !== hash) return;
+      if (!silencioso) erro(e);
+    }
+  };
+  await carregar(false);
 }
 
 async function telaFavoritos() {
@@ -147,8 +186,8 @@ async function telaFavoritos() {
   const resultados = [], proximos = [];
   for (const { c, d } of listas) {
     if (!d) continue;
-    for (const j of d.resultados) if (ehFav(j)) resultados.push({ ...j, competicao: c.nome });
-    for (const j of d.proximos) if (ehFav(j)) proximos.push({ ...j, competicao: c.nome });
+    for (const j of d.resultados) if (ehFav(j)) resultados.push({ ...j, competicao: c.nome, liga: c.id });
+    for (const j of d.proximos) if (ehFav(j)) proximos.push({ ...j, competicao: c.nome, liga: c.id });
   }
   resultados.sort((a, b) => b.data.localeCompare(a.data));
   proximos.sort((a, b) => a.data.localeCompare(b.data));
@@ -161,9 +200,12 @@ async function telaFavoritos() {
 }
 
 async function rota() {
+  pararEscalacao();
+  const escM = location.hash.match(/^#\/c\/([a-z0-9._]+)\/escalacao\/(\d+)$/);
   const m = location.hash.match(/^#\/c\/([a-z0-9._]+)\/(tabela|resultados|proximos)$/);
   try {
     if (location.hash === '#/favoritos') await telaFavoritos();
+    else if (escM) await telaEscalacao(escM[1], escM[2]);
     else if (m) await telaCompeticao(m[1], m[2]);
     else await telaLista();
     window.scrollTo(0, 0);
@@ -171,27 +213,35 @@ async function rota() {
 }
 conteudo.addEventListener('click', e => {
   const b = e.target.closest('.estrela');
-  if (!b) return;
-  e.preventDefault();
-  const nome = b.dataset.time;
-  const origem = b.dataset.origem;
-  if (!nome) return;
-  if (favoritos.has(nome) || (origem && favoritos.has(origem))) {
-    favoritos.delete(nome);
-    if (origem) favoritos.delete(origem);
-  } else favoritos.add(nome);
-  salvarFavoritos();
-  if (location.hash === '#/favoritos') { rota(); return; }
-  document.querySelectorAll('.estrela').forEach(el => {
-    if (el.dataset.time !== nome) return;
-    const on = favoritos.has(nome);
-    el.classList.toggle('ativa', on);
-    el.setAttribute('aria-pressed', String(on));
-    el.setAttribute('aria-label', on ? `Remover ${nome} dos favoritos` : `Marcar ${nome} como favorito`);
-    el.textContent = on ? '★' : '☆';
-  });
+  if (b) {
+    e.preventDefault();
+    e.stopPropagation();
+    const nome = b.dataset.time;
+    const origem = b.dataset.origem;
+    if (!nome) return;
+    if (favoritos.has(nome) || (origem && favoritos.has(origem))) {
+      favoritos.delete(nome);
+      if (origem) favoritos.delete(origem);
+    } else favoritos.add(nome);
+    salvarFavoritos();
+    if (location.hash === '#/favoritos') { rota(); return; }
+    document.querySelectorAll('.estrela').forEach(el => {
+      if (el.dataset.time !== nome) return;
+      const on = favoritos.has(nome);
+      el.classList.toggle('ativa', on);
+      el.setAttribute('aria-pressed', String(on));
+      el.setAttribute('aria-label', on ? `Remover ${nome} dos favoritos` : `Marcar ${nome} como favorito`);
+      el.textContent = on ? '★' : '☆';
+    });
+    return;
+  }
+  const jogoEl = e.target.closest('.jogo[data-id]');
+  if (jogoEl && jogoEl.dataset.liga) location.hash = `#/c/${jogoEl.dataset.liga}/escalacao/${jogoEl.dataset.id}`;
 });
-$('#voltar').onclick = () => { location.hash = '#/'; };
+$('#voltar').onclick = () => {
+  if (/^#\/c\/[a-z0-9._]+\/escalacao\/\d+$/.test(location.hash)) history.back();
+  else location.hash = '#/';
+};
 window.addEventListener('hashchange', rota);
 rota();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
