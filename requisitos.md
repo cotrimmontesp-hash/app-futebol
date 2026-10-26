@@ -58,6 +58,11 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Pênalti: a ESPN não manda o momento em que o pênalti é marcado, antes da cobrança. Manda o resultado: `Penalty - Scored` (convertido) e `Penalty - Missed` (perdido), com jogador, time e minuto. Títulos: `Pênalti convertido! Fulano (Time) aos 32′` e `Pênalti perdido! Fulano (Time) aos 32′`. Cobrança de disputa de pênaltis (`shootout: true`) não gera esses avisos; o fim de jogo já traz o placar dos pênaltis. Um pênalti convertido também continua saindo como gol.
 - O mesmo lance não sai duas vezes: a tag usa o id do `keyEvent`, como o gol usa o placar. No primeiro ciclo depois de reiniciar, e na primeira vez que o jogo entra na memória, nada de aviso antigo. O front não mudou; o cache do service worker segue `futebol-v10`.
 
+## Estatísticas do jogo (etapa 12)
+- A rota `/api/{liga}/escalacao/{jogo}` passa a incluir `estatisticas`, lidas do mesmo summary (`boxscore.teams[].statistics`). Casa à esquerda e fora à direita, nesta ordem, só com o que a ESPN mandar: posse de bola (`possessionPct`), finalizações (`totalShots`), finalizações no gol (`shotsOnTarget`), escanteios (`wonCorners`), faltas (`foulsCommitted`), impedimentos (`offsides`), cartões amarelos (`yellowCards`) e cartões vermelhos (`redCards`).
+- Antes do jogo o boxscore traz totais da temporada (gols, saldo, assistências), não o placar do confronto. Sem esses campos de jogo, a seção fica oculta. Com o jogo ao vivo, a tela reconsulta no mesmo intervalo de 5 minutos que já usava enquanto a escalação não saiu.
+- Cache do service worker: `futebol-v11`.
+
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -87,6 +92,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Brasileirão Série B (`bra.2`) na lista, na tabela, nos jogos, na escalação, na tela Hoje e nas notificações. Cache do service worker: `futebol-v9`.
 - 26/10: Aba Artilheiros em cada competição (top 10 de gols e 5 assistências). Sem dados, a aba fica oculta só nessa competição. Cache do service worker: `futebol-v10`.
 - 26/10: Notificações de cartão vermelho (inclusive segundo amarelo) e de pênalti convertido ou perdido nos jogos dos favoritos. A ESPN não manda o pênalti só marcado, antes da cobrança. Service worker segue `futebol-v10`.
+- 26/10: Estatísticas do jogo na tela da escalação (posse, finalizações, no gol, escanteios, faltas, impedimentos e cartões). Sem dados de jogo, a seção fica oculta. Cache do service worker: `futebol-v11`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).

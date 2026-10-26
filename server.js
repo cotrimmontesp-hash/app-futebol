@@ -125,13 +125,52 @@ function timeEscalacao(r) {
     _ord: r.homeAway === 'home' ? 0 : r.homeAway === 'away' ? 1 : 2,
   };
 }
+const ESTATISTICAS_JOGO = [
+  ['possessionPct', 'Posse de bola', true],
+  ['totalShots', 'Finalizações', false],
+  ['shotsOnTarget', 'Finalizações no gol', false],
+  ['wonCorners', 'Escanteios', false],
+  ['foulsCommitted', 'Faltas', false],
+  ['offsides', 'Impedimentos', false],
+  ['yellowCards', 'Cartões amarelos', false],
+  ['redCards', 'Cartões vermelhos', false],
+];
+function textoStat(s, percentual) {
+  if (!s || s.displayValue == null || String(s.displayValue).trim() === '') return null;
+  const v = String(s.displayValue).trim();
+  if (percentual && !v.includes('%')) return v + '%';
+  return v;
+}
+function estatisticasJogo(box) {
+  const teams = box && Array.isArray(box.teams) ? box.teams : [];
+  const casa = teams.find(t => t && t.homeAway === 'home');
+  const fora = teams.find(t => t && t.homeAway === 'away');
+  if (!casa || !fora) return null;
+  const achar = (time, nome) => (Array.isArray(time.statistics) ? time.statistics : []).find(x => x && x.name === nome);
+  const linhas = [];
+  for (const [nome, rotulo, percentual] of ESTATISTICAS_JOGO) {
+    const a = textoStat(achar(casa, nome), percentual);
+    const b = textoStat(achar(fora, nome), percentual);
+    if (a == null && b == null) continue;
+    linhas.push({ rotulo, casa: a == null ? '' : a, fora: b == null ? '' : b });
+  }
+  if (!linhas.length) return null;
+  const lado = t => ({ ...nomeTime(t.team), escudo: escudoUrl(t.team) });
+  return { casa: lado(casa), fora: lado(fora), linhas };
+}
+function estadoSumario(d) {
+  const c = d && d.header && d.header.competitions && d.header.competitions[0];
+  const st = c && c.status && c.status.type;
+  return (st && st.state) || '';
+}
 async function escalacao(liga, eventId) {
   const d = await espn(`${ESPN}/site/v2/sports/soccer/${liga}/summary?event=${eventId}`, 2 * 60e3);
   const times = (Array.isArray(d.rosters) ? d.rosters : []).map(timeEscalacao)
     .sort((a, b) => a._ord - b._ord)
     .map(({ _ord, ...t }) => t);
-  if (!times.some(t => t.titulares.length)) return { divulgada: false };
-  return { divulgada: true, times };
+  const extra = { estatisticas: estatisticasJogo(d.boxscore), aoVivo: estadoSumario(d) === 'in' };
+  if (!times.some(t => t.titulares.length)) return { divulgada: false, ...extra };
+  return { divulgada: true, times, ...extra };
 }
 
 const cache = new Map();
