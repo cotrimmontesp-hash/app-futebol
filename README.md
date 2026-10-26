@@ -2,6 +2,8 @@
 
 Tabela, resultados e próximos jogos de 10 competições (Brasileirão, Copa do Brasil, Libertadores, Sul-Americana, Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League). Funciona como app no celular (PWA).
 
+A estrela ao lado do time marca um favorito neste aparelho. Em **Favoritos**, na tela inicial, aparecem os resultados e os próximos jogos desses times em todas as competições.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```
