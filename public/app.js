@@ -195,6 +195,13 @@ function htmlListaEscalacao(lista, titulo) {
   }).join('');
   return `<h3 class="secao">${titulo}</h3>${linhas}`;
 }
+function htmlLances(lista) {
+  if (!lista || !lista.length) return '';
+  const cls = { gol: 'gol', 'gol-contra': 'gol', penalti: 'gol', 'penalti-perdido': 'penalti', amarelo: 'amarelo', vermelho: 'vermelho', substituicao: 'sub', var: 'var' };
+  const marca = { substituicao: '⇄', var: 'VAR' };
+  const linhas = lista.map(l => `<div class="lance"><span class="minuto">${esc(l.minuto)}</span><span class="icone ${cls[l.tipo] || ''}" aria-hidden="true">${marca[l.tipo] || ''}</span><span class="texto">${esc(l.texto)}</span></div>`).join('');
+  return `<section class="card lances"><h3 class="secao">Lances</h3>${linhas}</section>`;
+}
 function htmlEstatisticas(e) {
   if (!e || !e.linhas || !e.linhas.length) return '';
   const lado = t => `<span class="lado-stat">${imgEscudo(t && t.escudo, t && t.time)}<span>${esc(t && t.time)}</span></span>`;
@@ -285,13 +292,13 @@ function htmlTimeEscalacao(t) {
   return `<section class="card">${cabecaTime(t)}${htmlCampo(pontos)}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
 }
 function htmlEscalacao(d) {
-  const stats = htmlEstatisticas(d.estatisticas);
-  if (!d.divulgada) return stats + '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
+  const topo = htmlLances(d.lances) + htmlEstatisticas(d.estatisticas);
+  if (!d.divulgada) return topo + '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
   migrarFavoritos(d.times || []);
   const times = d.times || [];
   const duplo = times.length > 1 ? htmlCampoDuplo(times[0], times[1]) : '';
-  if (duplo) return stats + `<div class="escala">${duplo}</div>`;
-  return stats + `<div class="escala">${times.map(t => htmlTimeEscalacao(t)).join('')}</div>`;
+  if (duplo) return topo + `<div class="escala">${duplo}</div>`;
+  return topo + `<div class="escala">${times.map(t => htmlTimeEscalacao(t)).join('')}</div>`;
 }
 async function telaEscalacao(liga, eventId) {
   const hash = `#/c/${liga}/escalacao/${eventId}`;
@@ -303,9 +310,15 @@ async function telaEscalacao(liga, eventId) {
       const d = await api(`${liga}/escalacao/${eventId}`);
       if (location.hash !== hash) return;
       const temStats = d.estatisticas && d.estatisticas.linhas && d.estatisticas.linhas.length;
-      if (!(silencioso && !d.divulgada && !temStats && conteudo.querySelector('.msg'))) conteudo.innerHTML = htmlEscalacao(d);
+      const temLances = d.lances && d.lances.length;
+      if (!(silencioso && !d.divulgada && !temStats && !temLances && conteudo.querySelector('.msg'))) {
+        const y = silencioso ? window.scrollY : 0;
+        conteudo.innerHTML = htmlEscalacao(d);
+        if (silencioso) window.scrollTo(0, y);
+      }
       pararEscalacao();
-      if (!d.divulgada || d.aoVivo) timerEscalacao = setInterval(() => carregar(true), 5 * 60 * 1000);
+      if (d.aoVivo) timerEscalacao = setInterval(() => carregar(true), 30 * 1000);
+      else if (!d.divulgada) timerEscalacao = setInterval(() => carregar(true), 5 * 60 * 1000);
     } catch (e) {
       if (location.hash !== hash) return;
       if (!silencioso) erro(e);

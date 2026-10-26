@@ -54,7 +54,19 @@ button.estrela.ativa{color:#d4a017}
 .jogador .num{width:1.6rem;font-weight:700;color:#0b6e3d;flex:none}
 .jogador .pos{width:2.2rem;font-size:.72rem;color:#6b7570;flex:none}
 .jogador .nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stats h3.secao{margin:0;padding:12px 12px 0}
+.lances h3.secao,.stats h3.secao{margin:0;padding:12px 12px 0}
+.lance{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-top:1px solid #eef0ef;font-size:.92rem}
+.lance .minuto{width:3.5rem;flex:none;font-weight:700;color:#0b6e3d;font-variant-numeric:tabular-nums}
+.lance .texto{min-width:0}
+.icone{width:18px;height:18px;flex:none;margin-top:1px;display:flex;align-items:center;justify-content:center}
+.icone.gol{border-radius:50%;border:2px solid #1b1f1d}
+.icone.amarelo,.icone.vermelho{width:12px;height:16px;border-radius:1px;margin-left:3px}
+.icone.amarelo{background:#f5c518}
+.icone.vermelho{background:#d21f1f}
+.icone.sub{color:#0b6e3d;font-weight:800;font-size:.95rem}
+.icone.penalti{color:#9a3412;font-weight:800;font-size:.85rem}
+.icone.penalti::before{content:"×"}
+.icone.var{color:#1d4e89;font-weight:800;font-size:.62rem;letter-spacing:-.03em}
 .stat{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;padding:7px 12px;border-top:1px solid #eef0ef;font-size:.92rem}
 .stat > b:first-child{text-align:right}
 .stat > span:not(.lado-stat){color:#6b7570;font-size:.78rem;text-align:center}
