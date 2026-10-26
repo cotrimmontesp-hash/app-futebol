@@ -1,5 +1,5 @@
 // Service worker: guarda a "casca" do app para abrir offline; dados da API = rede primeiro, cache como reserva.
-const VERSAO = 'futebol-v5';
+const VERSAO = 'futebol-v6';
 const CASCA = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSAO).then(c => c.addAll(CASCA))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

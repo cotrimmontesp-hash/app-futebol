@@ -93,6 +93,44 @@ function escudoUrl(team) {
   const logo = lista.find(l => l && l.href);
   return logo ? logo.href : '';
 }
+const POS = {
+  G: 'GOL', CD: 'ZAG', 'CD-L': 'ZAG', 'CD-R': 'ZAG', LB: 'LE', RB: 'LD',
+  CM: 'MC', 'CM-L': 'MC', 'CM-R': 'MC', LM: 'ME', RM: 'MD',
+  AM: 'MEI', 'AM-L': 'MEI', 'AM-R': 'MEI',
+  CF: 'ATA', 'CF-L': 'ATA', 'CF-R': 'ATA', F: 'ATA', SUB: '',
+};
+function jogadorEscalacao(p) {
+  const ab = (p.position && p.position.abbreviation) || '';
+  return {
+    camisa: p.jersey || '',
+    posicao: Object.prototype.hasOwnProperty.call(POS, ab) ? POS[ab] : ab,
+    nome: (p.athlete && (p.athlete.displayName || p.athlete.shortName) || '').trim() || '?',
+    entrou: !!p.subbedIn,
+    saiu: !!p.subbedOut,
+  };
+}
+function timeEscalacao(r) {
+  const players = Array.isArray(r.roster) ? r.roster : [];
+  const titulares = players.filter(p => p.starter)
+    .sort((a, b) => (Number(a.formationPlace) || 99) - (Number(b.formationPlace) || 99))
+    .map(jogadorEscalacao);
+  const reservas = players.filter(p => !p.starter).map(jogadorEscalacao);
+  return {
+    ...nomeTime(r.team),
+    escudo: escudoUrl(r.team),
+    formacao: r.formation || '',
+    titulares, reservas,
+    _ord: r.homeAway === 'home' ? 0 : r.homeAway === 'away' ? 1 : 2,
+  };
+}
+async function escalacao(liga, eventId) {
+  const d = await espn(`${ESPN}/site/v2/sports/soccer/${liga}/summary?event=${eventId}`, 2 * 60e3);
+  const times = (Array.isArray(d.rosters) ? d.rosters : []).map(timeEscalacao)
+    .sort((a, b) => a._ord - b._ord)
+    .map(({ _ord, ...t }) => t);
+  if (!times.some(t => t.titulares.length)) return { divulgada: false };
+  return { divulgada: true, times };
+}
 
 const cache = new Map();
 async function espn(url, ttlMs) {
@@ -216,6 +254,11 @@ http.createServer(async (req, res) => {
     if (m) {
       if (!IDS.has(m[1])) return json(res, 404, { erro: 'Competição não encontrada' });
       return json(res, 200, m[2] === 'tabela' ? await tabela(m[1]) : await jogos(m[1]));
+    }
+    const escRoute = p.match(/^\/api\/([a-z0-9._]+)\/escalacao\/(\d+)$/);
+    if (escRoute) {
+      if (!IDS.has(escRoute[1])) return json(res, 404, { erro: 'Competição não encontrada' });
+      return json(res, 200, await escalacao(escRoute[1], escRoute[2]));
     }
     if (p.startsWith('/api/')) return json(res, 404, { erro: 'Não encontrado' });
     let file = path.normalize(path.join(PUBLIC, p === '/' ? 'index.html' : p));

@@ -24,6 +24,11 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Na tabela, nos jogos e em Favoritos, o escudo sai ao lado do nome (22 px, carregamento lazy, texto alternativo com o nome do time).
 - Sem URL, ou se a imagem falhar, o app mostra só o nome, sem ícone quebrado. Favoritos e a tradução dos nomes não mudam.
 
+## Escalação (etapa 6)
+- Rota `/api/{liga}/escalacao/{jogo}` (cache de 2 min) lê o summary da ESPN. Por time: nome já traduzido, escudo, formação, titulares e reservas (camisa, posição, nome) e quem entrou ou saiu.
+- Toque no jogo abre a tela Escalação. Antes de a ESPN divulgar, a mensagem é: "Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo)". Com a tela aberta, o app consulta de novo a cada 5 minutos e para ao sair. Sem notificação.
+- Não existe escalação provável gratuita: o dado só aparece perto da hora do jogo.
+
 ## Fora do MVP (não fazer agora)
 Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -35,10 +40,10 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
-- `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
+- `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
 - `public/`: HTML/CSS/JS puro, `manifest.webmanifest`, `sw.js` (service worker: app abre offline e mostra os últimos dados vistos), ícones.
 - Horários convertidos para America/Sao_Paulo no navegador; textos em pt-BR.
-- Rotas da API: `/api/competicoes`, `/api/{liga}/tabela`, `/api/{liga}/jogos`.
+- Rotas da API: `/api/competicoes`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
 
 ## Andamento
 - 25/10 21:35: Paulo confirmou MVP e pediu incluir Libertadores e Sul-Americana. Construção iniciada.
@@ -47,6 +52,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Favoritos no aparelho. Estrela na tabela e nos jogos; a opção Favoritos junta resultados e próximos de todas as competições. Cache do service worker: `futebol-v3`.
 - 26/10: Nomes usuais em português na tabela e nos jogos (mapa `TIMES`). Favorito salvo com o nome antigo da ESPN não se perde. Cache do service worker: `futebol-v4`.
 - 26/10: Escudos dos times na tabela, nos jogos e em Favoritos (`escudo` na API). Imagem que falha some e fica o nome. Cache do service worker: `futebol-v5`.
+- 26/10: Escalação oficial ao tocar no jogo. Se ainda não saiu, a tela avisa e reconsulta a cada 5 minutos. Cache do service worker: `futebol-v6`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).

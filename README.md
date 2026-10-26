@@ -8,6 +8,8 @@ Os nomes usuais saem em português (Bayern de Munique, Atlético de Madri, Inter
 
 O escudo do time, quando a ESPN envia, aparece ao lado do nome na tabela, nos jogos e em Favoritos. Se não houver imagem ou ela falhar, fica só o nome.
 
+Toque num jogo para ver a escalação oficial. Se ainda não saiu, o app avisa e consulta de novo a cada 5 minutos enquanto essa tela estiver aberta.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```
