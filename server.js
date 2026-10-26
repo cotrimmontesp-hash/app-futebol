@@ -164,12 +164,156 @@ function estadoSumario(d) {
   const st = c && c.status && c.status.type;
   return (st && st.state) || '';
 }
+function nomeAtletaLance(p) {
+  const a = p && p.athlete;
+  return (a && (a.displayName || a.shortName) || '').trim();
+}
+function minutoLance(clock) {
+  return (clock && clock.displayValue) || '';
+}
+function segundosLance(minuto) {
+  const m = String(minuto || '').match(/(\d+)\s*['’′](?:\s*\+\s*(\d+))?/);
+  if (!m) return -1;
+  return Number(m[1]) * 60 + (m[2] ? Number(m[2]) : 0);
+}
+function timeLance(team) {
+  if (!team) return '';
+  const n = nomeTime(team);
+  if (n.origem) return n.time;
+  const bruto = String(team.shortDisplayName || team.displayName || '');
+  const alt = bruto.replace(/Saint Germain/g, 'Saint-Germain');
+  if (alt !== bruto && TIMES[alt]) return TIMES[alt];
+  return n.time && n.time !== '?' ? n.time : '';
+}
+function tipoLance(slug, rotulo) {
+  if (slug === 'own-goal' || rotulo === 'Own Goal') return 'gol-contra';
+  if (slug === 'penalty---scored' || rotulo === 'Penalty - Scored') return 'penalti';
+  if (slug === 'penalty---missed' || slug === 'penalty---saved' || rotulo === 'Penalty - Missed' || rotulo === 'Penalty - Saved') return 'penalti-perdido';
+  if (slug === 'yellow-card' || rotulo === 'Yellow Card') return 'amarelo';
+  if (slug === 'red-card' || rotulo === 'Red Card') return 'vermelho';
+  if (slug === 'substitution' || rotulo === 'Substitution') return 'substituicao';
+  if (slug === 'goal' || slug.startsWith('goal---') || /^Goal\b/.test(rotulo)) return 'gol';
+  return '';
+}
+function textoLance(k, tipo) {
+  const time = timeLance(k.team);
+  const deQuem = nome => nome ? `${nome}${time ? ` (${time})` : ''}` : (time || '');
+  const jogador = nomeAtletaLance(k.participants && k.participants[0]);
+  if (tipo === 'gol-contra') {
+    const m = String(k.text || '').match(/Own Goal by .+?,\s*([^.]+)\./i);
+    const clube = m ? timeLance({ displayName: m[1].trim() }) : '';
+    const quem = jogador || (m && m[1].trim()) || '';
+    return quem ? `Gol contra de ${quem}${clube ? ` (${clube})` : ''}` : 'Gol contra';
+  }
+  if (tipo === 'penalti') return jogador || time ? `Pênalti convertido por ${deQuem(jogador)}` : '';
+  if (tipo === 'penalti-perdido') return jogador || time ? `Pênalti perdido por ${deQuem(jogador)}` : '';
+  if (tipo === 'amarelo') return jogador || time ? `Cartão amarelo para ${deQuem(jogador)}` : '';
+  if (tipo === 'vermelho') {
+    const segundo = /^Second yellow/i.test(k.text || '');
+    return jogador || time ? `${segundo ? 'Segundo amarelo' : 'Cartão vermelho'} para ${deQuem(jogador)}` : '';
+  }
+  if (tipo === 'substituicao') {
+    let entra = nomeAtletaLance(k.participants && k.participants[0]);
+    let sai = nomeAtletaLance(k.participants && k.participants[1]);
+    const m = String(k.text || '').match(/\.\s*(.+?)\s+replaces\s+(.+?)(?:\s+because\b|\.|$)/i);
+    if (m && (!entra || !sai)) { entra = entra || m[1].trim(); sai = sai || m[2].trim(); }
+    if (!entra || !sai) return '';
+    return `Sai ${sai}, entra ${entra}${time ? ` (${time})` : ''}`;
+  }
+  const assist = nomeAtletaLance(k.participants && k.participants[1]);
+  const varReview = /\bVAR Review\b/i.test(k.text || '');
+  if (!jogador && !time) return '';
+  let texto = `Gol de ${deQuem(jogador)}`;
+  if (assist) texto += `. Assistência de ${assist}`;
+  if (varReview) texto += '. Confirmado pelo VAR';
+  return texto;
+}
+function lanceVar(text, minuto, ordem) {
+  const base = { minuto, tipo: 'var', sec: segundosLance(minuto), ordem };
+  const anulado = text.match(/^GOAL OVERTURNED BY VAR:\s*(.+?)\s*\((.+?)\)/i);
+  if (anulado) {
+    const time = timeLance({ displayName: anulado[2].trim() });
+    return { ...base, anulado: true, texto: `Gol anulado pelo VAR: ${anulado[1].trim()}${time ? ` (${time})` : ''}` };
+  }
+  if (!/^VAR Decision:/i.test(text)) return null;
+  const resto = text.replace(/^VAR Decision:\s*/i, '').replace(/\.\s*$/, '').trim();
+  let carta = resto.match(/^Card upgraded\s+(.+?)\s*\((.+?)\)$/i);
+  if (carta) {
+    const time = timeLance({ displayName: carta[2].trim() });
+    return { ...base, texto: `Cartão alterado pelo VAR: ${carta[1].trim()}${time ? ` (${time})` : ''}` };
+  }
+  if (/^Card Changed/i.test(resto)) return { ...base, texto: 'Cartão alterado pelo VAR' };
+  carta = resto.match(/^No card change\s+(.+?)\s*\((.+?)\)$/i);
+  if (carta) {
+    const time = timeLance({ displayName: carta[2].trim() });
+    return { ...base, texto: `Cartão mantido pelo VAR: ${carta[1].trim()}${time ? ` (${time})` : ''}` };
+  }
+  if (/^No Goal\b/i.test(resto)) return { ...base, anulaGol: true, texto: 'Gol anulado pelo VAR' };
+  const gol = resto.match(/^Goal\b.*\(([^)]+)\)\s*$/i);
+  if (/^Goal\b/i.test(resto)) return { ...base, confirmaGol: true, jogador: gol ? gol[1].trim() : '', texto: gol ? `Gol confirmado pelo VAR: ${gol[1].trim()}` : 'Gol confirmado pelo VAR' };
+  const semPen = resto.match(/^No Penalty\s+(.+)$/i);
+  if (semPen) {
+    const time = timeLance({ displayName: semPen[1].trim() });
+    return { ...base, texto: `Pênalti anulado pelo VAR${time ? `: ${time}` : ''}` };
+  }
+  const pen = resto.match(/^Penalty\s+(.+)$/i);
+  if (pen) {
+    const time = timeLance({ displayName: pen[1].trim() });
+    return { ...base, texto: `Pênalti marcado pelo VAR${time ? `: ${time}` : ''}` };
+  }
+  if (/^Other Decision Cancelled/i.test(resto)) return { ...base, texto: 'Decisão do VAR cancelada' };
+  return { ...base, texto: 'Revisão do VAR' };
+}
+function lancesDoJogo(d) {
+  const eventos = Array.isArray(d && d.keyEvents) ? d.keyEvents : [];
+  const lances = [];
+  eventos.forEach((k, index) => {
+    if (!k || !k.type || k.shootout) return;
+    const slug = k.type.type || '';
+    const rotulo = k.type.text || '';
+    const tipo = tipoLance(slug, rotulo);
+    const minuto = minutoLance(k.clock);
+    if (!tipo) {
+      if ((slug === 'start-delay' || rotulo === 'Start Delay') && /\bVAR checking\b/i.test(k.text || '')) {
+        lances.push({ minuto, tipo: 'var', texto: 'VAR em análise', sec: segundosLance(minuto), ordem: index, analise: true });
+      }
+      return;
+    }
+    const texto = textoLance(k, tipo);
+    if (!texto) return;
+    lances.push({
+      minuto, tipo, texto, sec: segundosLance(minuto), ordem: index,
+      jogador: nomeAtletaLance(k.participants && k.participants[0]),
+      varReview: (tipo === 'gol' || tipo === 'penalti') && /\bVAR Review\b/i.test(k.text || ''),
+    });
+  });
+  const comentarios = Array.isArray(d && d.commentary) ? d.commentary : [];
+  const extras = [];
+  comentarios.forEach(c => {
+    const text = c && c.text || '';
+    if (!/^VAR Decision:/i.test(text) && !/^GOAL OVERTURNED BY VAR:/i.test(text)) return;
+    const minuto = minutoLance(c.time);
+    const v = lanceVar(text, minuto, 100000 + (Number(c.sequence) || 0));
+    if (!v) return;
+    if (v.confirmaGol && lances.some(l => (l.tipo === 'gol' || l.tipo === 'penalti') && l.varReview && (!v.jogador || l.texto.includes(v.jogador)))) return;
+    if (v.anulaGol && [...lances, ...extras].some(l => l.anulado && l.sec >= 0 && Math.abs(l.sec - v.sec) <= 180)) return;
+    extras.push(v);
+  });
+  const todos = lances.concat(extras).filter(l => {
+    if (!l.analise) return true;
+    return !extras.some(o => o.tipo === 'var' && !o.analise && o.sec >= 0 && Math.abs(o.sec - l.sec) <= 180);
+  });
+  todos.sort((a, b) => (b.sec - a.sec) || (b.ordem - a.ordem));
+  return todos.map(({ minuto, tipo, texto }) => ({ minuto, tipo, texto }));
+}
 async function escalacao(liga, eventId) {
-  const d = await espn(`${ESPN}/site/v2/sports/soccer/${liga}/summary?event=${eventId}`, 2 * 60e3);
+  const url = `${ESPN}/site/v2/sports/soccer/${liga}/summary?event=${eventId}`;
+  let d = await espn(url, 2 * 60e3);
+  if (estadoSumario(d) === 'in') d = await espn(url, 30e3);
   const times = (Array.isArray(d.rosters) ? d.rosters : []).map(timeEscalacao)
     .sort((a, b) => a._ord - b._ord)
     .map(({ _ord, ...t }) => t);
-  const extra = { estatisticas: estatisticasJogo(d.boxscore), aoVivo: estadoSumario(d) === 'in' };
+  const extra = { estatisticas: estatisticasJogo(d.boxscore), aoVivo: estadoSumario(d) === 'in', lances: lancesDoJogo(d) };
   if (!times.some(t => t.titulares.length)) return { divulgada: false, ...extra };
   return { divulgada: true, times, ...extra };
 }

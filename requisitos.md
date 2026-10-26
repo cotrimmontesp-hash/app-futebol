@@ -60,13 +60,19 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 
 ## Estatísticas do jogo (etapa 12)
 - A rota `/api/{liga}/escalacao/{jogo}` passa a incluir `estatisticas`, lidas do mesmo summary (`boxscore.teams[].statistics`). Casa à esquerda e fora à direita, nesta ordem, só com o que a ESPN mandar: posse de bola (`possessionPct`), finalizações (`totalShots`), finalizações no gol (`shotsOnTarget`), escanteios (`wonCorners`), faltas (`foulsCommitted`), impedimentos (`offsides`), cartões amarelos (`yellowCards`) e cartões vermelhos (`redCards`).
-- Antes do jogo o boxscore traz totais da temporada (gols, saldo, assistências), não o placar do confronto. Sem esses campos de jogo, a seção fica oculta. Com o jogo ao vivo, a tela reconsulta no mesmo intervalo de 5 minutos que já usava enquanto a escalação não saiu.
+- Antes do jogo o boxscore traz totais da temporada (gols, saldo, assistências), não o placar do confronto. Sem esses campos de jogo, a seção fica oculta. Com o jogo ao vivo, a tela reconsulta a cada 30 segundos; sem escalação divulgada, segue a cada 5 minutos.
 - Cache do service worker: `futebol-v11`.
 
 ## Campo da escalação (etapa 13)
 - Na tela do jogo, os dois times saem num único campo verde (linhas brancas, círculo com o número e o sobrenome embaixo). A casa fica na metade de cima, com o goleiro no topo e o ataque virado para o meio. O visitante fica na metade de baixo, com o goleiro embaixo e a formação espelhada, de frente para a casa. O nome e a formação (ex. 4-2-3-1) de cada time aparecem acima e abaixo do campo. As posições vêm de `formation` e `formationPlace` do summary, conferidos nas formações 4-4-2, 4-2-3-1, 4-3-3, 4-1-4-1, 3-4-2-1, 3-4-3, 5-3-2 e 5-4-1.
 - Sem formação, sem as 11 vagas ou com um esquema que o app ainda não desenha, a tela volta para a lista de titulares. Os reservas continuam embaixo do campo, com quem entrou. O summary não traz o técnico do jogo.
 - Cache do service worker: `futebol-v13`.
+
+## Lances do jogo (etapa 14)
+- Na tela do jogo, a seção Lances fica acima das estatísticas, do minuto mais recente para o mais antigo. A fonte é o `keyEvents` do summary: gol (autor e, quando há segundo jogador, assistência; gol de cabeça, voleio e falta contam como gol), gol contra, pênalti convertido, cartão amarelo, cartão vermelho (o texto que começa com "Second yellow card" vira segundo amarelo), substituição (o primeiro participante entra e o segundo sai: "Sai X, entra Y") e pênalti perdido (`Penalty - Missed` e `Penalty - Saved`). Cobrança de disputa de pênaltis (`shootout`) não entra.
+- O VAR não tem tipo próprio no `keyEvents`. A decisão está no `commentary` (`VAR Decision: …` e `GOAL OVERTURNED BY VAR`): gol anulado, cartão alterado, pênalti marcado ou anulado. Se só houver o atraso "VAR checking", a linha diz que o VAR está em análise. Gol que o texto marca como confirmado pelo VAR continua na linha do gol. Sem esses eventos, a seção fica oculta.
+- Com o jogo ao vivo, a tela reconsulta a cada 30 segundos e o cache do summary acompanha esse intervalo. Fora do ao vivo, a reconsulta de 5 minutos continua só enquanto a escalação não saiu.
+- Cache do service worker: `futebol-v14`.
 
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
@@ -79,7 +85,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
-- `server.js`: Node 18+. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s; artilheiros 10 min). A única dependência é `web-push`, usada só se as variáveis VAPID existirem. A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português. Com inscrições ativas, o vigia de notificações roda a cada ~60 s.
+- `server.js`: Node 18+. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min, 30 s com o jogo ao vivo; jogos de hoje 30 s; artilheiros 10 min). A única dependência é `web-push`, usada só se as variáveis VAPID existirem. A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português. Com inscrições ativas, o vigia de notificações roda a cada ~60 s.
 - `public/`: HTML/CSS/JS puro, `manifest.webmanifest`, `sw.js` (service worker: app abre offline e mostra os últimos dados vistos), ícones.
 - Horários convertidos para America/Sao_Paulo no navegador (o fuso do aparelho não muda o horário); textos em pt-BR.
 - Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/ping`, `/api/push/status`, `/api/push/registrar`, `/api/push/remover`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/artilheiros`, `/api/{liga}/escalacao/{jogo}`.
@@ -99,6 +105,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Notificações de cartão vermelho (inclusive segundo amarelo) e de pênalti convertido ou perdido nos jogos dos favoritos. A ESPN não manda o pênalti só marcado, antes da cobrança. Service worker segue `futebol-v10`.
 - 26/10: Estatísticas do jogo na tela da escalação (posse, finalizações, no gol, escanteios, faltas, impedimentos e cartões). Sem dados de jogo, a seção fica oculta. Cache do service worker: `futebol-v11`.
 - 26/10: Escalação oficial num único campo, os dois times de frente (casa em cima, visitante embaixo). Sem formação, continua a lista. Cache do service worker: `futebol-v13`.
+- 26/10: Lances do jogo na tela do jogo (gols, cartões, substituições, pênalti perdido e VAR), acima das estatísticas. Ao vivo, a tela atualiza a cada 30 segundos. Cache do service worker: `futebol-v14`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
