@@ -224,21 +224,26 @@ function sobrenome(nome) {
   while (i > 0 && particula.has(partes[i - 1].toLowerCase().replace(/\.$/, ''))) i--;
   return partes.slice(i).join(' ');
 }
-function posicoesCampo(formacao, titulares) {
+function posicoesCampo(formacao, titulares, lado) {
   const linhas = LINHAS_CAMPO[String(formacao || '').trim()];
   if (!linhas || !titulares || titulares.length !== 11) return null;
   const porLugar = new Map(titulares.map(p => [String(p.lugar || ''), p]));
   if (porLugar.size !== 11 || !porLugar.get('1')) return null;
-  const pontos = [{ ...porLugar.get('1'), x: 50, y: 84 }];
   const n = linhas.length;
+  const yDe = u => {
+    if (lado === 'cima') return 8 + u * (45 - 8);
+    if (lado === 'baixo') return 92 + u * (55 - 92);
+    return 84 + u * (18 - 84);
+  };
+  const xDe = x => lado === 'cima' ? 100 - x : x;
+  const pontos = [{ ...porLugar.get('1'), x: xDe(50), y: yDe(0), lado: lado || '' }];
   let ok = true;
   linhas.forEach((linha, i) => {
-    const y = 68 - (68 - 18) * (n === 1 ? 1 : i / (n - 1));
     const xs = xsCampo(linha.length);
     linha.forEach((lugar, j) => {
       const p = porLugar.get(String(lugar));
       if (!p) { ok = false; return; }
-      pontos.push({ ...p, x: xs[j], y });
+      pontos.push({ ...p, x: xDe(xs[j]), y: yDe((i + 1) / n), lado: lado || '' });
     });
   });
   return ok && pontos.length === 11 ? pontos : null;
@@ -260,26 +265,33 @@ function svgCampo() {
 function htmlCampo(pontos) {
   const atletas = pontos.map(p => {
     const marca = p.saiu ? '<i class="saiu-tag">saiu</i>' : '';
-    return `<div class="atleta" style="left:${p.x}%;top:${p.y}%"><span class="circulo">${esc(p.camisa)}</span><span class="sobrenome">${esc(sobrenome(p.nome))}</span>${marca}</div>`;
+    const cls = p.lado === 'baixo' ? 'atleta visitante' : 'atleta';
+    return `<div class="${cls}" style="left:${p.x}%;top:${p.y}%"><span class="circulo">${esc(p.camisa)}</span><span class="sobrenome">${esc(sobrenome(p.nome))}</span>${marca}</div>`;
   }).join('');
   return `<div class="campo">${svgCampo()}${atletas}</div>`;
 }
-function htmlTimeEscalacao(t, i, painel) {
+function cabecaTime(t) {
+  return `<div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>`;
+}
+function htmlCampoDuplo(casa, fora) {
+  const pc = posicoesCampo(casa.formacao, casa.titulares, 'cima');
+  const pf = posicoesCampo(fora.formacao, fora.titulares, 'baixo');
+  if (!pc || !pf) return '';
+  return `<section class="card">${cabecaTime(casa)}${htmlCampo(pc.concat(pf))}${cabecaTime(fora)}${htmlListaEscalacao(casa.reservas, 'Reservas · ' + esc(casa.time))}${htmlListaEscalacao(fora.reservas, 'Reservas · ' + esc(fora.time))}</section>`;
+}
+function htmlTimeEscalacao(t) {
   const pontos = posicoesCampo(t.formacao, t.titulares);
-  const cabeca = `<div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>`;
-  const attr = painel ? ` data-painel="${i}"${i ? ' hidden' : ''}` : '';
-  if (!pontos) return `<section class="card"${attr}>${cabeca}${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
-  return `<section class="card"${attr}>${cabeca}${htmlCampo(pontos)}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
+  if (!pontos) return `<section class="card">${cabecaTime(t)}${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
+  return `<section class="card">${cabecaTime(t)}${htmlCampo(pontos)}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
 }
 function htmlEscalacao(d) {
   const stats = htmlEstatisticas(d.estatisticas);
   if (!d.divulgada) return stats + '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
   migrarFavoritos(d.times || []);
   const times = d.times || [];
-  const ambos = times.length > 1 && times.every(t => posicoesCampo(t.formacao, t.titulares));
-  const seletor = ambos ? `<div class="seletor"><button type="button" data-campo="0" class="ativa">Casa</button><button type="button" data-campo="1">Fora</button></div>` : '';
-  const cards = times.map((t, i) => htmlTimeEscalacao(t, i, ambos)).join('');
-  return stats + seletor + `<div class="escala">${cards}</div>`;
+  const duplo = times.length > 1 ? htmlCampoDuplo(times[0], times[1]) : '';
+  if (duplo) return stats + `<div class="escala">${duplo}</div>`;
+  return stats + `<div class="escala">${times.map(t => htmlTimeEscalacao(t)).join('')}</div>`;
 }
 async function telaEscalacao(liga, eventId) {
   const hash = `#/c/${liga}/escalacao/${eventId}`;
@@ -464,13 +476,6 @@ async function rota() {
   } catch (e) { erro(e); }
 }
 conteudo.addEventListener('click', e => {
-  const campoBtn = e.target.closest('[data-campo]');
-  if (campoBtn) {
-    const id = campoBtn.dataset.campo;
-    document.querySelectorAll('[data-campo]').forEach(b => b.classList.toggle('ativa', b === campoBtn));
-    document.querySelectorAll('[data-painel]').forEach(p => { p.hidden = p.dataset.painel !== id; });
-    return;
-  }
   const pushBtn = e.target.closest('#btn-push');
   if (pushBtn) { e.preventDefault(); alternarPush(pushBtn); return; }
   const b = e.target.closest('.estrela');

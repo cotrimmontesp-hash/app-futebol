@@ -61,14 +61,12 @@ button.estrela.ativa{color:#d4a017}
 .lado-stat{display:flex;align-items:center;gap:6px;min-width:0;font-weight:600;font-size:.85rem}
 .stat .lado-stat:first-child{justify-content:flex-end}
 .lado-stat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.seletor{display:flex;background:#fff;border-radius:12px;margin-bottom:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.seletor button{flex:1;border:0;background:#fff;padding:10px 8px;font-weight:700;font-size:.92rem;color:#5a645f;border-bottom:3px solid transparent;cursor:pointer}
-.seletor button.ativa{color:#0b6e3d;border-bottom-color:#0b6e3d}
 .campo{position:relative;width:100%;aspect-ratio:68/105;background:linear-gradient(#1f8f48,#146b34);border-radius:12px;overflow:hidden;margin:4px 0 2px}
 .campo svg{position:absolute;inset:0;width:100%;height:100%;opacity:.9}
-.atleta{position:absolute;transform:translate(-50%,-55%);display:flex;flex-direction:column;align-items:center;width:58px;pointer-events:none}
-.circulo{width:30px;height:30px;border-radius:50%;background:#fff;color:#0b3d22;font-weight:800;font-size:.82rem;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
-.sobrenome{color:#fff;font-size:.64rem;font-weight:700;line-height:1.1;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.75);max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.atleta{position:absolute;transform:translate(-50%,-55%);display:flex;flex-direction:column;align-items:center;width:50px;pointer-events:none}
+.circulo{width:26px;height:26px;border-radius:50%;background:#fff;color:#0b3d22;font-weight:800;font-size:.74rem;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.atleta.visitante .circulo{background:#08301c;color:#fff}
+.sobrenome{color:#fff;font-size:.58rem;font-weight:700;line-height:1.1;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.75);max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .atleta .saiu-tag{margin:0;font-size:.58rem;color:#ffd0c8}
 .subiu,.saiu-tag{margin-left:auto;font-size:.68rem;font-weight:700;flex:none}
 .subiu{color:#0b6e3d}
