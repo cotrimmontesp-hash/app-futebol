@@ -195,11 +195,18 @@ function htmlListaEscalacao(lista, titulo) {
   }).join('');
   return `<h3 class="secao">${titulo}</h3>${linhas}`;
 }
+function htmlEstatisticas(e) {
+  if (!e || !e.linhas || !e.linhas.length) return '';
+  const lado = t => `<span class="lado-stat">${imgEscudo(t && t.escudo, t && t.time)}<span>${esc(t && t.time)}</span></span>`;
+  const linhas = e.linhas.map(l => `<div class="stat"><b>${esc(l.casa)}</b><span>${esc(l.rotulo)}</span><b>${esc(l.fora)}</b></div>`).join('');
+  return `<section class="card stats"><h3 class="secao">Estatísticas</h3><div class="stat cabeca">${lado(e.casa)}<span></span>${lado(e.fora)}</div>${linhas}</section>`;
+}
 function htmlEscalacao(d) {
-  if (!d.divulgada) return '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
+  const stats = htmlEstatisticas(d.estatisticas);
+  if (!d.divulgada) return stats + '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
   migrarFavoritos(d.times || []);
   const cards = (d.times || []).map(t => `<section class="card"><div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`).join('');
-  return `<div class="escala">${cards}</div>`;
+  return stats + `<div class="escala">${cards}</div>`;
 }
 async function telaEscalacao(liga, eventId) {
   const hash = `#/c/${liga}/escalacao/${eventId}`;
@@ -210,9 +217,10 @@ async function telaEscalacao(liga, eventId) {
     try {
       const d = await api(`${liga}/escalacao/${eventId}`);
       if (location.hash !== hash) return;
-      if (!(silencioso && !d.divulgada && conteudo.querySelector('.msg'))) conteudo.innerHTML = htmlEscalacao(d);
+      const temStats = d.estatisticas && d.estatisticas.linhas && d.estatisticas.linhas.length;
+      if (!(silencioso && !d.divulgada && !temStats && conteudo.querySelector('.msg'))) conteudo.innerHTML = htmlEscalacao(d);
       pararEscalacao();
-      if (!d.divulgada) timerEscalacao = setInterval(() => carregar(true), 5 * 60 * 1000);
+      if (!d.divulgada || d.aoVivo) timerEscalacao = setInterval(() => carregar(true), 5 * 60 * 1000);
     } catch (e) {
       if (location.hash !== hash) return;
       if (!silencioso) erro(e);

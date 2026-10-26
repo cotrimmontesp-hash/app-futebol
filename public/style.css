@@ -4,6 +4,7 @@ body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;b
 .topo h1{font-size:1.15rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .voltar{background:none;border:0;color:#fff;font-size:2rem;line-height:1;padding:0 6px;cursor:pointer}
 .abas{position:sticky;top:52px;z-index:2;display:flex;background:#fff;border-bottom:1px solid #dde2df}
+.abas[hidden]{display:none}
 .abas a{flex:1;text-align:center;padding:12px 2px;font-weight:600;font-size:.82rem;color:#5a645f;cursor:pointer;border-bottom:3px solid transparent;text-decoration:none}
 .abas a.ativa{color:#0b6e3d;border-color:#0b6e3d}
 main{max-width:760px;margin:0 auto;padding:12px}
@@ -53,6 +54,13 @@ button.estrela.ativa{color:#d4a017}
 .jogador .num{width:1.6rem;font-weight:700;color:#0b6e3d;flex:none}
 .jogador .pos{width:2.2rem;font-size:.72rem;color:#6b7570;flex:none}
 .jogador .nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stats h3.secao{margin:0;padding:12px 12px 0}
+.stat{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;padding:7px 12px;border-top:1px solid #eef0ef;font-size:.92rem}
+.stat > b:first-child{text-align:right}
+.stat > span:not(.lado-stat){color:#6b7570;font-size:.78rem;text-align:center}
+.lado-stat{display:flex;align-items:center;gap:6px;min-width:0;font-weight:600;font-size:.85rem}
+.stat .lado-stat:first-child{justify-content:flex-end}
+.lado-stat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .subiu,.saiu-tag{margin-left:auto;font-size:.68rem;font-weight:700;flex:none}
 .subiu{color:#0b6e3d}
 .saiu-tag{color:#b42318}
