@@ -48,21 +48,25 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Competição `bra.2`, nome "Brasileirão Série B", no mesmo grupo das ligas. Tabela, resultados, próximos jogos, escalação, tela Hoje e o vigia de notificações passam a incluí-la porque todos leem a lista única de competições.
 - Nomes e escudos usam o mesmo caminho das outras ligas. Os nomes curtos da ESPN já saem em português (Criciúma, América-MG, Atlético-GO). Athletic permanece Athletic, para não colidir com o Athletic espanhol. Não há fase de mata-mata no scoreboard; se a ESPN mandar semifinal, quartas ou ida/volta, o mapa `FASES` já traduz.
 
+## Artilheiros (etapa 10)
+- Rota `/api/{liga}/artilheiros` (cache de 10 min) lê `statistics` da ESPN: `goalsLeaders` e `assistsLeaders`. Cada líder traz nome, time já traduzido, escudo, jogos e o número (gols ou assistências). A resposta não inclui foto nem posição do jogador.
+- Na tela da competição, a aba **Artilheiros** lista os 10 primeiros em gols e, abaixo, uma lista curta de 5 assistências. Se a ESPN não mandar líderes naquela competição, a aba some só nela.
+
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
 
 ## Fonte de dados (decidido em 25/10/2026)
 - **Escolhida: API pública não oficial da ESPN** (`site.api.espn.com`), **sem chave de API**.
   - Testada em 25/10/2026, com a Copa do Brasil e a Série B em 26/10/2026: cobre as 11 competições (tabela + jogos). Códigos: bra.1, bra.2, bra.copa_do_brazil, eng.1, esp.1, ita.1, ger.1, fra.1, uefa.champions, conmebol.libertadores, conmebol.sudamericana.
-  - Tabela: `/apis/v2/sports/soccer/{liga}/standings`. Jogos: `/apis/site/v2/sports/soccer/{liga}/scoreboard?dates=AAAAMM` (por mês; intervalo de datas AAAAMMDD-AAAAMMDD retornou erro 400 no teste).
+  - Tabela: `/apis/v2/sports/soccer/{liga}/standings`. Jogos: `/apis/site/v2/sports/soccer/{liga}/scoreboard?dates=AAAAMM` (por mês; intervalo de datas AAAAMMDD-AAAAMMDD retornou erro 400 no teste). Artilheiros: `/apis/site/v2/sports/soccer/{liga}/statistics` (`goalsLeaders` e `assistsLeaders`; testado nas 11 competições em 26/10/2026).
 - Descartadas: football-data.org (exige chave; pela documentação, o plano grátis não inclui Libertadores/Sul-Americana — não testado) e TheSportsDB (não testada a fundo, pois a ESPN já cobre tudo sem chave).
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
-- `server.js`: Node 18+. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s). A única dependência é `web-push`, usada só se as variáveis VAPID existirem. A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português. Com inscrições ativas, o vigia de notificações roda a cada ~60 s.
+- `server.js`: Node 18+. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s; artilheiros 10 min). A única dependência é `web-push`, usada só se as variáveis VAPID existirem. A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português. Com inscrições ativas, o vigia de notificações roda a cada ~60 s.
 - `public/`: HTML/CSS/JS puro, `manifest.webmanifest`, `sw.js` (service worker: app abre offline e mostra os últimos dados vistos), ícones.
 - Horários convertidos para America/Sao_Paulo no navegador (o fuso do aparelho não muda o horário); textos em pt-BR.
-- Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/ping`, `/api/push/status`, `/api/push/registrar`, `/api/push/remover`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
+- Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/ping`, `/api/push/status`, `/api/push/registrar`, `/api/push/remover`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/artilheiros`, `/api/{liga}/escalacao/{jogo}`.
 
 ## Andamento
 - 25/10 21:35: Paulo confirmou MVP e pediu incluir Libertadores e Sul-Americana. Construção iniciada.
@@ -75,6 +79,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Tela Hoje com placar ao vivo e jogos do dia em Brasília. Atualiza sozinha enquanto a tela está aberta. Cache do service worker: `futebol-v7`.
 - 26/10: Notificações push dos times favoritos (gol, escalação, início, intervalo, volta e fim). Sem as chaves VAPID, o botão fica oculto. Cache do service worker: `futebol-v8`.
 - 26/10: Brasileirão Série B (`bra.2`) na lista, na tabela, nos jogos, na escalação, na tela Hoje e nas notificações. Cache do service worker: `futebol-v9`.
+- 26/10: Aba Artilheiros em cada competição (top 10 de gols e 5 assistências). Sem dados, a aba fica oculta só nessa competição. Cache do service worker: `futebol-v10`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).

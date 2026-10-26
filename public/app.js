@@ -2,6 +2,9 @@ const $ = s => document.querySelector(s);
 const TZ = 'America/Sao_Paulo';
 const conteudo = $('#conteudo');
 let competicoes = [];
+const cacheArt = new Map();
+const pendArt = new Map();
+const semArtilheiros = new Set();
 
 const fmtData = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, weekday: 'short', day: '2-digit', month: '2-digit' });
 const fmtDia = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, weekday: 'long', day: '2-digit', month: 'long' });
@@ -130,6 +133,38 @@ function htmlJogos(lista, tipo, liga, opcoes) {
   return html + '</div>';
 }
 
+function htmlArtilheiros(d) {
+  const bloco = (titulo, lista, campo, coluna) => {
+    if (!lista.length) return '';
+    const linhas = lista.map((l, i) => `<tr><td class="pos">${i + 1}</td>
+      <td class="artilheiro"><strong>${esc(l.nome)}</strong><span>${imgEscudo(l.escudo, l.time)}${esc(l.time)}</span></td>
+      <td>${l.jogos ?? ''}</td><td class="pts">${l[campo] ?? ''}</td></tr>`).join('');
+    return `<h2 class="secao">${titulo}</h2><div class="card"><table>
+      <thead><tr><th>#</th><th style="text-align:left">Jogador</th><th>J</th><th>${coluna}</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`;
+  };
+  return bloco('Gols', d.gols || [], 'gols', 'Gols') + bloco('Assistências', d.assistencias || [], 'assistencias', 'A');
+}
+function dadosArtilheiros(id) {
+  if (cacheArt.has(id)) return Promise.resolve(cacheArt.get(id));
+  if (pendArt.has(id)) return pendArt.get(id);
+  const p = api(`${id}/artilheiros`).then(d => {
+    cacheArt.set(id, d);
+    if (!(d.gols && d.gols.length) && !(d.assistencias && d.assistencias.length)) semArtilheiros.add(id);
+    return d;
+  }).finally(() => pendArt.delete(id));
+  pendArt.set(id, p);
+  return p;
+}
+function prepararAbaArtilheiros(id) {
+  const link = document.querySelector('#abas a[data-aba="artilheiros"]');
+  if (!link) return;
+  link.hidden = semArtilheiros.has(id);
+  if (cacheArt.has(id) || semArtilheiros.has(id)) return;
+  dadosArtilheiros(id).then(() => {
+    if (location.hash.startsWith(`#/c/${id}/`)) link.hidden = semArtilheiros.has(id);
+  }).catch(() => {});
+}
 async function telaCompeticao(id, aba) {
   if (!competicoes.length) competicoes = await api('competicoes');
   const c = competicoes.find(x => x.id === id);
@@ -137,8 +172,18 @@ async function telaCompeticao(id, aba) {
   $('#titulo').textContent = c.nome;
   $('#voltar').hidden = false; $('#abas').hidden = false;
   document.querySelectorAll('#abas a').forEach(a => { a.href = `#/c/${id}/${a.dataset.aba}`; a.classList.toggle('ativa', a.dataset.aba === aba); });
+  prepararAbaArtilheiros(id);
   carregando();
-  if (aba === 'tabela') conteudo.innerHTML = htmlTabela(await api(`${id}/tabela`));
+  if (aba === 'artilheiros') {
+    const d = await dadosArtilheiros(id);
+    const link = document.querySelector('#abas a[data-aba="artilheiros"]');
+    if (semArtilheiros.has(id)) {
+      if (link) link.hidden = true;
+      location.hash = `#/c/${id}/tabela`;
+      return;
+    }
+    conteudo.innerHTML = htmlArtilheiros(d);
+  } else if (aba === 'tabela') conteudo.innerHTML = htmlTabela(await api(`${id}/tabela`));
   else { const d = await api(`${id}/jogos`); conteudo.innerHTML = htmlJogos(aba === 'resultados' ? d.resultados : d.proximos, aba, id); }
 }
 
@@ -327,7 +372,7 @@ async function rota() {
   pararEscalacao();
   pararHoje();
   const escM = location.hash.match(/^#\/c\/([a-z0-9._]+)\/escalacao\/(\d+)$/);
-  const m = location.hash.match(/^#\/c\/([a-z0-9._]+)\/(tabela|resultados|proximos)$/);
+  const m = location.hash.match(/^#\/c\/([a-z0-9._]+)\/(tabela|resultados|proximos|artilheiros)$/);
   try {
     if (location.hash === '#/hoje') await telaHoje();
     else if (location.hash === '#/favoritos') await telaFavoritos();

@@ -271,6 +271,45 @@ async function hoje() {
   return { jogos: jogosLista, atualizadoEm: new Date().toISOString() };
 }
 
+function numeroEstatistica(lista, nome) {
+  const s = (Array.isArray(lista) ? lista : []).find(x => x && x.name === nome);
+  const n = s ? Number(s.value) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+function numeroNoTexto(texto, re) {
+  const m = String(texto || '').match(re);
+  return m ? Number(m[1]) : null;
+}
+function liderEstatistica(L) {
+  const a = (L && L.athlete) || {};
+  const stats = a.statistics;
+  const jogos = numeroNoTexto(L.displayValue, /Matches:\s*(\d+)/) ?? numeroEstatistica(stats, 'appearances');
+  const gols = numeroNoTexto(L.displayValue, /Goals:\s*(\d+)/) ?? numeroEstatistica(stats, 'totalGoals');
+  const assistencias = numeroNoTexto(L.displayValue, /Assists:\s*(\d+)/) ?? numeroEstatistica(stats, 'goalAssists');
+  return {
+    nome: String(a.displayName || a.shortName || '').trim() || '?',
+    ...nomeTime(a.team),
+    escudo: escudoUrl(a.team),
+    jogos, gols, assistencias,
+  };
+}
+async function artilheiros(id) {
+  let d;
+  try {
+    d = await espn(`${ESPN}/site/v2/sports/soccer/${id}/statistics`, 10 * 60e3);
+  } catch (e) {
+    if (/ESPN HTTP 4\d\d/.test(String(e && e.message))) return { gols: [], assistencias: [] };
+    throw e;
+  }
+  const stats = Array.isArray(d.stats) ? d.stats : [];
+  const leaders = nome => {
+    const bloco = stats.find(s => s && s.name === nome);
+    return Array.isArray(bloco && bloco.leaders) ? bloco.leaders : [];
+  };
+  const lista = (nome, n) => leaders(nome).slice(0, n).map(liderEstatistica).filter(x => x.nome !== '?');
+  return { gols: lista('goalsLeaders', 10), assistencias: lista('assistsLeaders', 5) };
+}
+
 async function jogos(id) {
   const meses = [-2, -1, 0, 1, 2].map(mes);
   const urls = meses.map(m => `${ESPN}/site/v2/sports/soccer/${id}/scoreboard?dates=${m}&limit=400`);
@@ -506,10 +545,11 @@ async function tratar(req, res) {
     }
     if (p === '/api/competicoes') return json(res, 200, COMPETICOES);
     if (p === '/api/hoje') return json(res, 200, await hoje());
-    const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos)$/);
+    const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos|artilheiros)$/);
     if (m) {
       if (!IDS.has(m[1])) return json(res, 404, { erro: 'Competição não encontrada' });
-      return json(res, 200, m[2] === 'tabela' ? await tabela(m[1]) : await jogos(m[1]));
+      const corpo = m[2] === 'tabela' ? await tabela(m[1]) : m[2] === 'jogos' ? await jogos(m[1]) : await artilheiros(m[1]);
+      return json(res, 200, corpo);
     }
     const escRoute = p.match(/^\/api\/([a-z0-9._]+)\/escalacao\/(\d+)$/);
     if (escRoute) {
