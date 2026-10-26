@@ -1,8 +1,9 @@
 // Servidor do App Futebol: serve o front (pasta public) e um proxy com cache para a API pública da ESPN.
-// Sem dependências: requer Node 18+ (usa fetch nativo).
+// Node 18+ (fetch nativo). A única dependência é web-push, e só entra se as chaves VAPID existirem.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const eventosPush = require('./push-eventos');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -284,6 +285,201 @@ async function jogos(id) {
   return { resultados, proximos, atualizadoEm: new Date().toISOString() };
 }
 
+const ARQUIVO_PUSH = process.env.PUSH_ARQUIVO || path.join(__dirname, 'data', 'push-inscricoes.json');
+const VIGIA_MS = 60 * 1000;
+let webpush = null;
+let pushAtivo = false;
+let inscricoes = [];
+let memoriaPush = null;
+let timerPush = null;
+let cicloOcupado = false;
+
+function prepararPush() {
+  const pub = process.env.VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT;
+  if (!pub || !priv || !subject) return false;
+  try {
+    webpush = require('web-push');
+    webpush.setVapidDetails(subject, pub, priv);
+    return true;
+  } catch (e) {
+    console.error('Notificações desligadas:', e.message);
+    webpush = null;
+    return false;
+  }
+}
+
+function carregarInscricoes() {
+  try {
+    const d = JSON.parse(fs.readFileSync(ARQUIVO_PUSH, 'utf8'));
+    inscricoes = (Array.isArray(d.inscricoes) ? d.inscricoes : []).filter(i => i && i.inscricao && i.inscricao.endpoint);
+  } catch { inscricoes = []; }
+}
+
+function salvarInscricoes() {
+  try {
+    fs.mkdirSync(path.dirname(ARQUIVO_PUSH), { recursive: true });
+    const tmp = ARQUIVO_PUSH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ inscricoes }, null, 2));
+    fs.renameSync(tmp, ARQUIVO_PUSH);
+  } catch (e) {
+    console.error('Não foi possível gravar as inscrições:', e.message);
+  }
+}
+
+function normalizarFavoritos(lista) {
+  if (!Array.isArray(lista)) return [];
+  return [...new Set(lista.filter(x => typeof x === 'string').map(s => s.trim()).filter(Boolean))].slice(0, 80);
+}
+
+function inscricaoValida(s) {
+  return !!(s && typeof s.endpoint === 'string' && s.endpoint.startsWith('https://')
+    && s.keys && typeof s.keys.p256dh === 'string' && typeof s.keys.auth === 'string');
+}
+
+function statusPush() {
+  return pushAtivo
+    ? { ativo: true, chavePublica: process.env.VAPID_PUBLIC_KEY }
+    : { ativo: false };
+}
+
+function registrarInscricao(body) {
+  if (!pushAtivo) return { code: 503, corpo: { erro: 'Notificações indisponíveis' } };
+  const bruta = body && (body.inscricao || body.subscription);
+  if (!inscricaoValida(bruta)) return { code: 400, corpo: { erro: 'Inscrição inválida' } };
+  const favoritos = normalizarFavoritos(body.favoritos);
+  const item = { inscricao: { endpoint: bruta.endpoint, keys: { p256dh: bruta.keys.p256dh, auth: bruta.keys.auth } }, favoritos, atualizadoEm: new Date().toISOString() };
+  const i = inscricoes.findIndex(x => x.inscricao.endpoint === item.inscricao.endpoint);
+  if (i >= 0) inscricoes[i] = item;
+  else inscricoes.push(item);
+  salvarInscricoes();
+  agendarVigia();
+  return { code: 200, corpo: { ok: true } };
+}
+
+function removerInscricao(body) {
+  const endpoint = body && (body.endpoint || (body.inscricao && body.inscricao.endpoint));
+  if (!endpoint) return { code: 400, corpo: { erro: 'Inscrição inválida' } };
+  const antes = inscricoes.length;
+  inscricoes = inscricoes.filter(x => x.inscricao.endpoint !== endpoint);
+  if (inscricoes.length !== antes) salvarInscricoes();
+  if (!inscricoes.length) pararVigia();
+  return { code: 200, corpo: { ok: true } };
+}
+
+function removerEndpoint(endpoint) {
+  const antes = inscricoes.length;
+  inscricoes = inscricoes.filter(x => x.inscricao.endpoint !== endpoint);
+  if (inscricoes.length !== antes) salvarInscricoes();
+  if (!inscricoes.length) pararVigia();
+}
+
+function pararVigia() {
+  if (timerPush) { clearInterval(timerPush); timerPush = null; }
+  memoriaPush = null;
+}
+
+function agendarVigia() {
+  if (!pushAtivo || !inscricoes.length || timerPush) return;
+  vigiar().catch(e => console.error('vigia', e.message));
+  timerPush = setInterval(() => vigiar().catch(e => console.error('vigia', e.message)), VIGIA_MS);
+  if (timerPush.unref) timerPush.unref();
+}
+
+async function checarEscalacoes(jogos) {
+  const agora = Date.now();
+  const mapa = {};
+  await Promise.all(jogos.map(async j => {
+    if (!eventosPush.dentroDasProximasHoras(j, agora, 2)) return;
+    const k = eventosPush.chaveJogo(j);
+    if (memoriaPush && memoriaPush.jogos && memoriaPush.jogos[k] && memoriaPush.jogos[k].escalacao) {
+      mapa[k] = true;
+      return;
+    }
+    try {
+      const d = await escalacao(j.liga, j.id);
+      mapa[k] = !!d.divulgada;
+    } catch { /* tenta de novo no próximo ciclo */ }
+  }));
+  return mapa;
+}
+
+async function buscarAutor(ev) {
+  const j = ev.jogo;
+  try {
+    const d = await espn(`${ESPN}/site/v2/sports/soccer/${j.liga}/summary?event=${j.id}`, 2 * 60e3);
+    const detalhes = d.header && d.header.competitions && d.header.competitions[0] && d.header.competitions[0].details;
+    const achado = eventosPush.autorDoGol(detalhes, j, ev.prevCasa, ev.prevFora, nomeTime);
+    if (achado.autor) ev.autor = achado.autor;
+    if (achado.contra) ev.contra = true;
+    if (achado.minuto) ev.minuto = achado.minuto;
+  } catch { /* segue sem o nome de quem fez o gol */ }
+}
+
+async function despachar(eventos) {
+  for (const ev of eventos) {
+    if (ev.tipo === 'gol') await buscarAutor(ev);
+    for (const ins of [...inscricoes]) {
+      if (!eventosPush.jogoDoFavorito(ev.jogo, ins.favoritos)) continue;
+      const payload = eventosPush.textoNotificacao(ev, ins.favoritos);
+      try {
+        await webpush.sendNotification(ins.inscricao, JSON.stringify(payload), { TTL: 60 * 60 });
+      } catch (err) {
+        const code = err && err.statusCode;
+        if (!tratarFalhaPush(ins.inscricao.endpoint, code)) console.error('push envio', code || (err && err.message));
+      }
+    }
+  }
+}
+
+function tratarFalhaPush(endpoint, statusCode) {
+  if (statusCode === 404 || statusCode === 410) {
+    removerEndpoint(endpoint);
+    return true;
+  }
+  return false;
+}
+
+async function vigiar() {
+  if (cicloOcupado || !pushAtivo || !webpush || !inscricoes.length) return;
+  cicloOcupado = true;
+  try {
+    const { jogos } = await hoje();
+    const nomes = new Set(inscricoes.flatMap(i => i.favoritos));
+    const relevantes = (jogos || []).filter(j => eventosPush.jogoDoFavorito(j, nomes));
+    const escalacoes = await checarEscalacoes(relevantes);
+    const primeiro = !memoriaPush || !memoriaPush.iniciado;
+    const resultado = eventosPush.avaliarCiclo(memoriaPush, relevantes, escalacoes);
+    memoriaPush = resultado.memoria;
+    if (primeiro) return;
+    if (resultado.eventos.length) await despachar(resultado.eventos);
+  } catch (e) {
+    console.error('vigia', e.message);
+  } finally {
+    cicloOcupado = false;
+  }
+}
+
+function lerCorpo(req) {
+  return new Promise((resolve, reject) => {
+    const pedacos = [];
+    let n = 0;
+    req.on('data', c => {
+      n += c.length;
+      if (n > 64 * 1024) { reject(new Error('corpo grande')); req.destroy(); return; }
+      pedacos.push(c);
+    });
+    req.on('end', () => {
+      const texto = Buffer.concat(pedacos).toString('utf8');
+      if (!texto) return resolve({});
+      try { resolve(JSON.parse(texto)); }
+      catch { reject(new Error('JSON inválido')); }
+    });
+    req.on('error', reject);
+  });
+}
+
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
@@ -292,10 +488,21 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
-http.createServer(async (req, res) => {
+async function tratar(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = decodeURIComponent(url.pathname);
   try {
+    if (req.method === 'GET' && p === '/api/ping') {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end('ok');
+      return;
+    }
+    if (req.method === 'GET' && p === '/api/push/status') return json(res, 200, statusPush());
+    if (req.method === 'POST' && (p === '/api/push/registrar' || p === '/api/push/remover')) {
+      const body = await lerCorpo(req);
+      const r = p.endsWith('/remover') ? removerInscricao(body) : registrarInscricao(body);
+      return json(res, r.code, r.corpo);
+    }
     if (p === '/api/competicoes') return json(res, 200, COMPETICOES);
     if (p === '/api/hoje') return json(res, 200, await hoje());
     const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos)$/);
@@ -315,6 +522,24 @@ http.createServer(async (req, res) => {
       'Cache-Control': p === '/sw.js' ? 'no-cache' : 'public, max-age=300' });
     fs.createReadStream(file).pipe(res);
   } catch (e) {
-    json(res, 502, { erro: 'Falha ao buscar dados da fonte (ESPN): ' + e.message });
+    const msg = String((e && e.message) || e);
+    if (msg === 'JSON inválido' || msg === 'corpo grande') return json(res, 400, { erro: 'Inscrição inválida' });
+    json(res, 502, { erro: 'Falha ao buscar dados da fonte (ESPN): ' + msg });
   }
-}).listen(PORT, () => console.log(`App Futebol rodando em http://localhost:${PORT}`));
+}
+
+function ouvir(porta = PORT) {
+  const server = http.createServer((req, res) => tratar(req, res));
+  server.listen(porta, () => console.log(`App Futebol rodando em http://localhost:${porta}`));
+  if (pushAtivo && inscricoes.length) agendarVigia();
+  return server;
+}
+
+pushAtivo = prepararPush();
+carregarInscricoes();
+if (require.main === module) {
+  ouvir();
+  console.log(pushAtivo ? 'Notificações ativas' : 'Notificações desligadas (faltam variáveis VAPID)');
+}
+
+module.exports = { tratar, ouvir, tratarFalhaPush, eventosPush };

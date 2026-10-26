@@ -1,5 +1,5 @@
 // Service worker: guarda a "casca" do app para abrir offline; dados da API = rede primeiro, cache como reserva.
-const VERSAO = 'futebol-v7';
+const VERSAO = 'futebol-v8';
 const CASCA = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSAO).then(c => c.addAll(CASCA))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
@@ -17,4 +17,29 @@ self.addEventListener('fetch', e => {
     return;
   }
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/index.html'))));
+});
+self.addEventListener('push', event => {
+  let dados = {};
+  try { dados = event.data ? event.data.json() : {}; } catch { dados = {}; }
+  const opcoes = {
+    body: dados.body || '',
+    icon: dados.icon || '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    data: { url: dados.url || '/' },
+  };
+  if (dados.tag) opcoes.tag = dados.tag;
+  event.waitUntil(self.registration.showNotification(dados.title || 'Futebol', opcoes));
+});
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const destino = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+  event.waitUntil((async () => {
+    const lista = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const cliente of lista) {
+      if (new URL(cliente.url).origin !== self.location.origin) continue;
+      if ('navigate' in cliente) { try { await cliente.navigate(destino); } catch { /* a janela segue aberta */ } }
+      return cliente.focus();
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(destino);
+  })());
 });

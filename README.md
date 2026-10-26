@@ -12,6 +12,23 @@ Toque num jogo para ver a escalação oficial. Se ainda não saiu, o app avisa e
 
 **Hoje**, em destaque na tela inicial, lista os jogos do dia no horário de Brasília: ao vivo (placar e minuto), os que ainda vão começar e os já encerrados. Com essa tela aberta, o placar atualiza sozinho.
 
+## Notificações no celular
+No Android, com o app instalado pelo Chrome, abra **Favoritos** e toque em **Ativar notificações**. O aviso só sai para os times marcados com a estrela: gol, escalação divulgada, começo, intervalo, volta do intervalo e fim de jogo.
+
+Sem estas variáveis o app funciona igual e o botão não aparece:
+
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT` (ex.: `mailto:voce@email.com`)
+
+Gere o par de chaves com:
+
+```
+npx web-push generate-vapid-keys
+```
+
+No Render, coloque as três em Environment e use Build command `npm install` (a única dependência é `web-push`). O plano grátis dorme: um serviço externo pode chamar `GET /api/ping` (responde `ok`) para manter o servidor acordado. As inscrições ficam na memória e num arquivo JSON local; ao abrir o app de novo, o aparelho reenvia a inscrição e os favoritos. O primeiro ciclo depois de um reinício não repete aviso antigo.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```
@@ -24,7 +41,7 @@ Abra http://localhost:3000. Para usar outra porta: `PORT=8080 node server.js`.
 Com o app publicado (endereço https), abra no Chrome (Android) ou Safari (iPhone) e use "Adicionar à tela inicial".
 
 ## Publicar de graça (opções; nada foi publicado ainda)
-- **Render.com** (mais simples): suba esta pasta num repositório do GitHub → New → Web Service → Build command: (vazio) / Start command: `node server.js` → plano Free. Obs.: no plano grátis o servidor "dorme" sem uso e o primeiro acesso demora ~1 min.
+- **Render.com** (mais simples): suba esta pasta num repositório do GitHub → New → Web Service → Build command: `npm install` / Start command: `node server.js` → plano Free. Obs.: no plano grátis o servidor "dorme" sem uso e o primeiro acesso demora ~1 min. Para as notificações, veja as variáveis VAPID acima e `GET /api/ping`.
 - Alternativas parecidas: Railway, Fly.io, Koyeb.
 
 ## Fonte dos dados
