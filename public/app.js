@@ -201,12 +201,85 @@ function htmlEstatisticas(e) {
   const linhas = e.linhas.map(l => `<div class="stat"><b>${esc(l.casa)}</b><span>${esc(l.rotulo)}</span><b>${esc(l.fora)}</b></div>`).join('');
   return `<section class="card stats"><h3 class="secao">Estatísticas</h3><div class="stat cabeca">${lado(e.casa)}<span></span>${lado(e.fora)}</div>${linhas}</section>`;
 }
+const LINHAS_CAMPO = {
+  '4-4-2': [[3, 6, 5, 2], [11, 8, 4, 7], [9, 10]],
+  '4-2-3-1': [[3, 6, 5, 2], [4, 8], [11, 10, 7], [9]],
+  '4-3-3': [[3, 6, 5, 2], [8, 4, 7], [11, 9, 10]],
+  '4-1-4-1': [[3, 6, 5, 2], [4], [11, 10, 8, 7], [9]],
+  '3-4-2-1': [[4, 5, 6], [3, 8, 7, 2], [11, 10], [9]],
+  '3-4-3': [[4, 5, 6], [3, 8, 7, 2], [11, 9, 10]],
+  '5-3-2': [[3, 4, 5, 6, 2], [11, 8, 7], [9, 10]],
+  '5-4-1': [[3, 4, 5, 6, 2], [11, 10, 8, 7], [9]],
+};
+function xsCampo(n) {
+  if (n <= 1) return [50];
+  const pad = n >= 5 ? 10 : 16;
+  return Array.from({ length: n }, (_, i) => pad + (100 - 2 * pad) * i / (n - 1));
+}
+function sobrenome(nome) {
+  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 1) return partes[0] || '';
+  const particula = new Set(['da', 'de', 'do', 'dos', 'das', 'di', 'del', 'della', 'van', 'von', 'le', 'la']);
+  let i = partes.length - 1;
+  while (i > 0 && particula.has(partes[i - 1].toLowerCase().replace(/\.$/, ''))) i--;
+  return partes.slice(i).join(' ');
+}
+function posicoesCampo(formacao, titulares) {
+  const linhas = LINHAS_CAMPO[String(formacao || '').trim()];
+  if (!linhas || !titulares || titulares.length !== 11) return null;
+  const porLugar = new Map(titulares.map(p => [String(p.lugar || ''), p]));
+  if (porLugar.size !== 11 || !porLugar.get('1')) return null;
+  const pontos = [{ ...porLugar.get('1'), x: 50, y: 84 }];
+  const n = linhas.length;
+  let ok = true;
+  linhas.forEach((linha, i) => {
+    const y = 68 - (68 - 18) * (n === 1 ? 1 : i / (n - 1));
+    const xs = xsCampo(linha.length);
+    linha.forEach((lugar, j) => {
+      const p = porLugar.get(String(lugar));
+      if (!p) { ok = false; return; }
+      pontos.push({ ...p, x: xs[j], y });
+    });
+  });
+  return ok && pontos.length === 11 ? pontos : null;
+}
+function svgCampo() {
+  return `<svg viewBox="0 0 68 105" preserveAspectRatio="none" aria-hidden="true">
+    <rect x="3" y="3" width="62" height="99" fill="none" stroke="#fff" stroke-width="0.6"/>
+    <line x1="3" y1="52.5" x2="65" y2="52.5" stroke="#fff" stroke-width="0.6"/>
+    <circle cx="34" cy="52.5" r="9.15" fill="none" stroke="#fff" stroke-width="0.5"/>
+    <circle cx="34" cy="52.5" r="0.7" fill="#fff"/>
+    <rect x="13.84" y="3" width="40.32" height="16.5" fill="none" stroke="#fff" stroke-width="0.5"/>
+    <rect x="13.84" y="85.5" width="40.32" height="16.5" fill="none" stroke="#fff" stroke-width="0.5"/>
+    <rect x="24.84" y="3" width="18.32" height="5.5" fill="none" stroke="#fff" stroke-width="0.5"/>
+    <rect x="24.84" y="96.5" width="18.32" height="5.5" fill="none" stroke="#fff" stroke-width="0.5"/>
+    <circle cx="34" cy="14" r="0.55" fill="#fff"/>
+    <circle cx="34" cy="91" r="0.55" fill="#fff"/>
+  </svg>`;
+}
+function htmlCampo(pontos) {
+  const atletas = pontos.map(p => {
+    const marca = p.saiu ? '<i class="saiu-tag">saiu</i>' : '';
+    return `<div class="atleta" style="left:${p.x}%;top:${p.y}%"><span class="circulo">${esc(p.camisa)}</span><span class="sobrenome">${esc(sobrenome(p.nome))}</span>${marca}</div>`;
+  }).join('');
+  return `<div class="campo">${svgCampo()}${atletas}</div>`;
+}
+function htmlTimeEscalacao(t, i, painel) {
+  const pontos = posicoesCampo(t.formacao, t.titulares);
+  const cabeca = `<div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>`;
+  const attr = painel ? ` data-painel="${i}"${i ? ' hidden' : ''}` : '';
+  if (!pontos) return `<section class="card"${attr}>${cabeca}${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
+  return `<section class="card"${attr}>${cabeca}${htmlCampo(pontos)}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`;
+}
 function htmlEscalacao(d) {
   const stats = htmlEstatisticas(d.estatisticas);
   if (!d.divulgada) return stats + '<p class="msg">Escalação ainda não divulgada (sai cerca de 1 hora antes do jogo).</p>';
   migrarFavoritos(d.times || []);
-  const cards = (d.times || []).map(t => `<section class="card"><div class="escala-time">${botaoEstrela(t)}${imgEscudo(t.escudo, t.time)}<strong>${esc(t.time)}</strong>${t.formacao ? `<span class="formacao">${esc(t.formacao)}</span>` : ''}</div>${htmlListaEscalacao(t.titulares, 'Titulares')}${htmlListaEscalacao(t.reservas, 'Reservas')}</section>`).join('');
-  return stats + `<div class="escala">${cards}</div>`;
+  const times = d.times || [];
+  const ambos = times.length > 1 && times.every(t => posicoesCampo(t.formacao, t.titulares));
+  const seletor = ambos ? `<div class="seletor"><button type="button" data-campo="0" class="ativa">Casa</button><button type="button" data-campo="1">Fora</button></div>` : '';
+  const cards = times.map((t, i) => htmlTimeEscalacao(t, i, ambos)).join('');
+  return stats + seletor + `<div class="escala">${cards}</div>`;
 }
 async function telaEscalacao(liga, eventId) {
   const hash = `#/c/${liga}/escalacao/${eventId}`;
@@ -391,6 +464,13 @@ async function rota() {
   } catch (e) { erro(e); }
 }
 conteudo.addEventListener('click', e => {
+  const campoBtn = e.target.closest('[data-campo]');
+  if (campoBtn) {
+    const id = campoBtn.dataset.campo;
+    document.querySelectorAll('[data-campo]').forEach(b => b.classList.toggle('ativa', b === campoBtn));
+    document.querySelectorAll('[data-painel]').forEach(p => { p.hidden = p.dataset.painel !== id; });
+    return;
+  }
   const pushBtn = e.target.closest('#btn-push');
   if (pushBtn) { e.preventDefault(); alternarPush(pushBtn); return; }
   const b = e.target.closest('.estrela');
