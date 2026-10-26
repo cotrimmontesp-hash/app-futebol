@@ -17,6 +17,7 @@ function lerFavoritos() {
 }
 function salvarFavoritos() {
   try { localStorage.setItem(CHAVE_FAV, JSON.stringify([...favoritos])); } catch { /* aparelho sem espaço ou storage bloqueado */ }
+  sincronizarPush();
 }
 let favoritos = lerFavoritos();
 let timerEscalacao = 0;
@@ -219,11 +220,82 @@ async function telaHoje() {
   await carregar(false);
 }
 
+let pushStatus = null;
+function chavePush(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const s = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(s);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+async function lerPushStatus() {
+  if (pushStatus) return pushStatus;
+  try { pushStatus = await api('push/status'); }
+  catch { pushStatus = { ativo: false }; }
+  return pushStatus;
+}
+async function sincronizarPush() {
+  try {
+    const st = await lerPushStatus();
+    if (!st.ativo || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub || Notification.permission !== 'granted') return;
+    await fetch('/api/push/registrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inscricao: sub.toJSON(), favoritos: [...favoritos] }),
+    });
+  } catch { /* sem rede ou push indisponível */ }
+}
+async function barraPush() {
+  const st = await lerPushStatus();
+  if (!st.ativo || !window.isSecureContext || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return '';
+  let inscrito = false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    inscrito = !!(sub && Notification.permission === 'granted');
+  } catch { return ''; }
+  const rotulo = inscrito ? 'Desativar notificações' : 'Ativar notificações';
+  const cls = inscrito ? ' class="secundario"' : '';
+  return `<p class="push-barra"><button type="button" id="btn-push" data-push="${inscrito ? 'on' : 'off'}"${cls}>${rotulo}</button><small id="push-aviso">Só avisamos jogos dos times com estrela.</small></p>`;
+}
+async function alternarPush(btn) {
+  const aviso = document.getElementById('push-aviso');
+  const dizer = t => { if (aviso) aviso.textContent = t; };
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (btn.dataset.push === 'on') {
+      const sub = await reg.pushManager.getSubscription();
+      const endpoint = sub && sub.endpoint;
+      if (sub) await sub.unsubscribe();
+      if (endpoint) await fetch('/api/push/remover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint }) });
+      if (location.hash === '#/favoritos') rota();
+      return;
+    }
+    const st = await lerPushStatus();
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { dizer('O navegador bloqueou as notificações.'); return; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chavePush(st.chavePublica) });
+    const r = await fetch('/api/push/registrar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inscricao: sub.toJSON(), favoritos: [...favoritos] }),
+    });
+    if (!r.ok) { dizer('Não foi possível ativar agora.'); return; }
+    if (location.hash === '#/favoritos') rota();
+  } catch { dizer('Não foi possível ativar as notificações neste navegador.'); }
+}
+
 async function telaFavoritos() {
   $('#titulo').textContent = 'Favoritos';
   $('#voltar').hidden = false; $('#abas').hidden = true;
+  const barra = await barraPush();
   if (!favoritos.size) {
-    conteudo.innerHTML = '<p class="msg">Nenhum time favorito ainda. Toque na estrela ao lado de um time na tabela ou nos jogos.</p>';
+    conteudo.innerHTML = barra + '<p class="msg">Nenhum time favorito ainda. Toque na estrela ao lado de um time na tabela ou nos jogos.</p>';
     return;
   }
   carregando();
@@ -244,11 +316,11 @@ async function telaFavoritos() {
   resultados.sort((a, b) => b.data.localeCompare(a.data));
   proximos.sort((a, b) => a.data.localeCompare(b.data));
   if (!resultados.length && !proximos.length) {
-    conteudo.innerHTML = '<p class="msg">Nenhum jogo dos seus times nos últimos e próximos 2 meses.</p>';
+    conteudo.innerHTML = barra + '<p class="msg">Nenhum jogo dos seus times nos últimos e próximos 2 meses.</p>';
     return;
   }
   const bloco = (titulo, lista, tipo) => `<h2 class="secao">${titulo}</h2>${htmlJogos(lista, tipo)}`;
-  conteudo.innerHTML = bloco('Resultados', resultados, 'resultados') + bloco('Próximos jogos', proximos, 'proximos');
+  conteudo.innerHTML = barra + bloco('Resultados', resultados, 'resultados') + bloco('Próximos jogos', proximos, 'proximos');
 }
 
 async function rota() {
@@ -266,6 +338,8 @@ async function rota() {
   } catch (e) { erro(e); }
 }
 conteudo.addEventListener('click', e => {
+  const pushBtn = e.target.closest('#btn-push');
+  if (pushBtn) { e.preventDefault(); alternarPush(pushBtn); return; }
   const b = e.target.closest('.estrela');
   if (b) {
     e.preventDefault();
@@ -299,4 +373,4 @@ $('#voltar').onclick = () => {
 };
 window.addEventListener('hashchange', rota);
 rota();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').then(() => sincronizarPush()).catch(() => {});

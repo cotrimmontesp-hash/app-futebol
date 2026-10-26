@@ -10,7 +10,7 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 
 ## Favoritos (etapa 3)
 - Estrela ao lado de cada time na tabela e nas listas de jogos. Toque marca ou desmarca.
-- Salvos só no `localStorage` do aparelho (chave `futebol-favoritos`), pelo nome exibido. Sem conta e sem gravar no servidor. Se o nome foi traduzido, o valor antigo (nome curto da ESPN) continua reconhecido e passa a ser gravado com o nome novo.
+- Salvos no `localStorage` do aparelho (chave `futebol-favoritos`), pelo nome exibido. Sem conta. Se o nome foi traduzido, o valor antigo (nome curto da ESPN) continua reconhecido e passa a ser gravado com o nome novo. A lista de nomes só vai ao servidor se as notificações estiverem ativadas, junto com a inscrição.
 - Opção **Favoritos** na tela inicial: resultados e próximos jogos, de todas as competições, apenas dos times marcados. Sem nenhum favorito, a tela explica para tocar na estrela.
 - Fora desta etapa: notificações e login.
 
@@ -36,8 +36,16 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Com a tela aberta, atualiza a cada 30 s se houver jogo ao vivo e a cada 5 min caso contrário. Ao sair, a atualização para. Sem notificação.
 - Nas listas de cada competição, jogo ao vivo continua com placar e minuto (o mesmo `relogio`). O horário exibido usa America/Sao_Paulo, mesmo se o aparelho estiver em outro fuso.
 
+## Notificações (etapa 8)
+- Web Push com VAPID. A única dependência npm é `web-push`. As chaves vêm de `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` (ex.: `mailto:`). Nada de chave no código. Sem essas variáveis o app segue normal e o botão de notificações não aparece.
+- Em **Favoritos**, **Ativar notificações** pede permissão, cria a inscrição no service worker e envia `POST /api/push/registrar` com a inscrição e a lista de favoritos. Ao abrir o app ou mudar a estrela, a inscrição e os favoritos são reenviados. **Desativar notificações** cancela no aparelho e no servidor.
+- O servidor guarda as inscrições na memória e num JSON local (`data/push-inscricoes.json`), como melhor esforço: o plano grátis do Render perde a memória ao reiniciar.
+- Enquanto houver inscrição, um vigia consulta o placar do dia a cada ~60 s (a mesma rota `/api/hoje` e o cache dela) e compara com o estado anterior em memória. Avisa, só para quem marcou o time: gol (quem fez, se a ESPN trouxer, placar e minuto), início, intervalo, volta do intervalo, fim com o resultado e escalação divulgada (a rota de escalação, só em jogos de favoritos que começam nas próximas ~2 h). O mesmo evento não sai duas vezes. No primeiro ciclo depois de reiniciar, nada de aviso antigo.
+- Texto em pt-BR, nome já traduzido, escudo como ícone quando a ESPN manda. Ex.: `GOL! Flamengo 1 x 0 Atlético-MG (35′)`. Toque na notificação abre o app. Inscrição que responde 410 ou 404 é removida.
+- `GET /api/ping` responde `ok`, para um serviço externo manter o servidor acordado. Sem login.
+
 ## Fora do MVP (não fazer agora)
-Notificações, login, estatísticas de jogadores, Android/iOS nativo.
+Login, estatísticas de jogadores, Android/iOS nativo.
 
 ## Fonte de dados (decidido em 25/10/2026)
 - **Escolhida: API pública não oficial da ESPN** (`site.api.espn.com`), **sem chave de API**.
@@ -47,10 +55,10 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
 
 ## Arquitetura
-- `server.js`: Node 18+ sem dependências. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s). A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português.
+- `server.js`: Node 18+. Serve o front (`public/`) e faz proxy com cache para a ESPN (tabela 10 min; jogos do mês atual 2 min; outros meses 30 min; escalação 2 min; jogos de hoje 30 s). A única dependência é `web-push`, usada só se as variáveis VAPID existirem. A ESPN libera CORS, mas o proxy reduz chamadas e entrega os dados já em português. Com inscrições ativas, o vigia de notificações roda a cada ~60 s.
 - `public/`: HTML/CSS/JS puro, `manifest.webmanifest`, `sw.js` (service worker: app abre offline e mostra os últimos dados vistos), ícones.
 - Horários convertidos para America/Sao_Paulo no navegador (o fuso do aparelho não muda o horário); textos em pt-BR.
-- Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
+- Rotas da API: `/api/competicoes`, `/api/hoje`, `/api/ping`, `/api/push/status`, `/api/push/registrar`, `/api/push/remover`, `/api/{liga}/tabela`, `/api/{liga}/jogos`, `/api/{liga}/escalacao/{jogo}`.
 
 ## Andamento
 - 25/10 21:35: Paulo confirmou MVP e pediu incluir Libertadores e Sul-Americana. Construção iniciada.
@@ -61,6 +69,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Escudos dos times na tabela, nos jogos e em Favoritos (`escudo` na API). Imagem que falha some e fica o nome. Cache do service worker: `futebol-v5`.
 - 26/10: Escalação oficial ao tocar no jogo. Se ainda não saiu, a tela avisa e reconsulta a cada 5 minutos. Cache do service worker: `futebol-v6`.
 - 26/10: Tela Hoje com placar ao vivo e jogos do dia em Brasília. Atualiza sozinha enquanto a tela está aberta. Cache do service worker: `futebol-v7`.
+- 26/10: Notificações push dos times favoritos (gol, escalação, início, intervalo, volta e fim). Sem as chaves VAPID, o botão fica oculto. Cache do service worker: `futebol-v8`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
