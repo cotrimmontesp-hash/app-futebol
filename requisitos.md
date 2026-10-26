@@ -16,7 +16,7 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 
 ## Nomes em português (etapa 4)
 - `server.js` traduz o nome curto da ESPN para o nome usual no Brasil (mapa `TIMES`) na tabela e nos jogos. Exemplos: Bayern Munich → Bayern de Munique, Atlético Madrid → Atlético de Madri, Inter Milan → Inter de Milão, Paris Saint-Germain → PSG. Manchester United permanece Manchester United.
-- Sem entrada no mapa, o nome original é mantido. Vale para as 10 competições (ligas europeias, Champions, Libertadores e Sul-Americana).
+- Sem entrada no mapa, o nome original é mantido. Vale para as 11 competições (ligas europeias, Champions, Libertadores, Sul-Americana e Brasileirão Série A e B).
 - Favorito antigo, gravado com o nome de antes da tradução, continua marcado: o app compara também esse nome (`origem`) e regrava o nome novo.
 
 ## Escudos (etapa 5)
@@ -30,7 +30,7 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Não existe escalação provável gratuita: o dado só aparece perto da hora do jogo.
 
 ## Hoje (etapa 7)
-- Rota `/api/hoje` (cache de cerca de 30 s) junta, das 10 competições, os jogos cujo apito cai no dia atual no fuso America/Sao_Paulo. Consulta o scoreboard diário da ESPN em paralelo (o dia de Brasília e o dia anterior e o seguinte, para não perder jogo na virada do fuso) e fica só com o que é hoje em Brasília.
+- Rota `/api/hoje` (cache de cerca de 30 s) junta, das 11 competições, os jogos cujo apito cai no dia atual no fuso America/Sao_Paulo. Consulta o scoreboard diário da ESPN em paralelo (o dia de Brasília e o dia anterior e o seguinte, para não perder jogo na virada do fuso) e fica só com o que é hoje em Brasília.
 - Por jogo: competição, horário, estado (`pre` agendado, `in` ao vivo, `post` encerrado), placar, minuto (`relogio`; intervalo vira "Intervalo"), times com nome traduzido e escudo.
 - Opção **Hoje** em destaque na tela inicial. Seções, nesta ordem: Ao vivo agora (placar e minuto), Hoje (horário HH:MM de Brasília) e Encerrados hoje. Sem jogos no dia, a tela avisa. Dentro de cada seção, jogos de times favoritos vêm primeiro. Toque no jogo abre a escalação; estrela e escudo continuam.
 - Com a tela aberta, atualiza a cada 30 s se houver jogo ao vivo e a cada 5 min caso contrário. Ao sair, a atualização para. Sem notificação.
@@ -44,12 +44,16 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Texto em pt-BR, nome já traduzido, escudo como ícone quando a ESPN manda. Ex.: `GOL! Flamengo 1 x 0 Atlético-MG (35′)`. Toque na notificação abre o app. Inscrição que responde 410 ou 404 é removida.
 - `GET /api/ping` responde `ok`, para um serviço externo manter o servidor acordado. Sem login.
 
+## Brasileirão Série B (etapa 9)
+- Competição `bra.2`, nome "Brasileirão Série B", no mesmo grupo das ligas. Tabela, resultados, próximos jogos, escalação, tela Hoje e o vigia de notificações passam a incluí-la porque todos leem a lista única de competições.
+- Nomes e escudos usam o mesmo caminho das outras ligas. Os nomes curtos da ESPN já saem em português (Criciúma, América-MG, Atlético-GO). Athletic permanece Athletic, para não colidir com o Athletic espanhol. Não há fase de mata-mata no scoreboard; se a ESPN mandar semifinal, quartas ou ida/volta, o mapa `FASES` já traduz.
+
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
 
 ## Fonte de dados (decidido em 25/10/2026)
 - **Escolhida: API pública não oficial da ESPN** (`site.api.espn.com`), **sem chave de API**.
-  - Testada em 25/10/2026 e com a Copa do Brasil em 26/10/2026: cobre as 10 competições (tabela + jogos). Códigos: bra.1, bra.copa_do_brazil, eng.1, esp.1, ita.1, ger.1, fra.1, uefa.champions, conmebol.libertadores, conmebol.sudamericana.
+  - Testada em 25/10/2026, com a Copa do Brasil e a Série B em 26/10/2026: cobre as 11 competições (tabela + jogos). Códigos: bra.1, bra.2, bra.copa_do_brazil, eng.1, esp.1, ita.1, ger.1, fra.1, uefa.champions, conmebol.libertadores, conmebol.sudamericana.
   - Tabela: `/apis/v2/sports/soccer/{liga}/standings`. Jogos: `/apis/site/v2/sports/soccer/{liga}/scoreboard?dates=AAAAMM` (por mês; intervalo de datas AAAAMMDD-AAAAMMDD retornou erro 400 no teste).
 - Descartadas: football-data.org (exige chave; pela documentação, o plano grátis não inclui Libertadores/Sul-Americana — não testado) e TheSportsDB (não testada a fundo, pois a ESPN já cobre tudo sem chave).
 - Limitações: API não oficial e sem garantia (pode mudar/sair do ar sem aviso); nomes sem tradução ficam na forma curta da ESPN; legendas da tabela traduzidas pelo app (as desconhecidas ficam em inglês); Libertadores/Sul-Americana mostram a tabela da fase de grupos (mata-mata aparece em Resultados/Próximos jogos). A Copa do Brasil não tem classificação na ESPN (resposta sem grupos): a aba Tabela avisa que é mata-mata, e as fases (oitavas, quartas, ida/volta e as demais) aparecem em Resultados e Próximos jogos. Resultados e próximos jogos cobrem ~2 meses para trás e para frente (até 60 jogos).
@@ -70,6 +74,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Escalação oficial ao tocar no jogo. Se ainda não saiu, a tela avisa e reconsulta a cada 5 minutos. Cache do service worker: `futebol-v6`.
 - 26/10: Tela Hoje com placar ao vivo e jogos do dia em Brasília. Atualiza sozinha enquanto a tela está aberta. Cache do service worker: `futebol-v7`.
 - 26/10: Notificações push dos times favoritos (gol, escalação, início, intervalo, volta e fim). Sem as chaves VAPID, o botão fica oculto. Cache do service worker: `futebol-v8`.
+- 26/10: Brasileirão Série B (`bra.2`) na lista, na tabela, nos jogos, na escalação, na tela Hoje e nas notificações. Cache do service worker: `futebol-v9`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).

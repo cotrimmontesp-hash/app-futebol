@@ -11,6 +11,7 @@ const ESPN = 'https://site.api.espn.com/apis';
 
 const COMPETICOES = [
   { id: 'bra.1', nome: 'Brasileirão Série A', pais: 'Brasil', tipo: 'liga' },
+  { id: 'bra.2', nome: 'Brasileirão Série B', pais: 'Brasil', tipo: 'liga' },
   { id: 'bra.copa_do_brazil', nome: 'Copa do Brasil', pais: 'Brasil', tipo: 'copa' },
   { id: 'conmebol.libertadores', nome: 'Copa Libertadores', pais: 'América do Sul', tipo: 'copa' },
   { id: 'conmebol.sudamericana', nome: 'Copa Sul-Americana', pais: 'América do Sul', tipo: 'copa' },
