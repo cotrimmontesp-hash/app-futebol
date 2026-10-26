@@ -107,6 +107,7 @@ function jogadorEscalacao(p) {
     camisa: p.jersey || '',
     posicao: Object.prototype.hasOwnProperty.call(POS, ab) ? POS[ab] : ab,
     nome: (p.athlete && (p.athlete.displayName || p.athlete.shortName) || '').trim() || '?',
+    lugar: p.formationPlace == null || p.formationPlace === '' ? '' : String(p.formationPlace),
     entrou: !!p.subbedIn,
     saiu: !!p.subbedOut,
   };

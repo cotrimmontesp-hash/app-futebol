@@ -63,6 +63,11 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Antes do jogo o boxscore traz totais da temporada (gols, saldo, assistências), não o placar do confronto. Sem esses campos de jogo, a seção fica oculta. Com o jogo ao vivo, a tela reconsulta no mesmo intervalo de 5 minutos que já usava enquanto a escalação não saiu.
 - Cache do service worker: `futebol-v11`.
 
+## Campo da escalação (etapa 13)
+- Na tela do jogo, os dois times saem num único campo verde (linhas brancas, círculo com o número e o sobrenome embaixo). A casa fica na metade de cima, com o goleiro no topo e o ataque virado para o meio. O visitante fica na metade de baixo, com o goleiro embaixo e a formação espelhada, de frente para a casa. O nome e a formação (ex. 4-2-3-1) de cada time aparecem acima e abaixo do campo. As posições vêm de `formation` e `formationPlace` do summary, conferidos nas formações 4-4-2, 4-2-3-1, 4-3-3, 4-1-4-1, 3-4-2-1, 3-4-3, 5-3-2 e 5-4-1.
+- Sem formação, sem as 11 vagas ou com um esquema que o app ainda não desenha, a tela volta para a lista de titulares. Os reservas continuam embaixo do campo, com quem entrou. O summary não traz o técnico do jogo.
+- Cache do service worker: `futebol-v13`.
+
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -93,6 +98,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Aba Artilheiros em cada competição (top 10 de gols e 5 assistências). Sem dados, a aba fica oculta só nessa competição. Cache do service worker: `futebol-v10`.
 - 26/10: Notificações de cartão vermelho (inclusive segundo amarelo) e de pênalti convertido ou perdido nos jogos dos favoritos. A ESPN não manda o pênalti só marcado, antes da cobrança. Service worker segue `futebol-v10`.
 - 26/10: Estatísticas do jogo na tela da escalação (posse, finalizações, no gol, escanteios, faltas, impedimentos e cartões). Sem dados de jogo, a seção fica oculta. Cache do service worker: `futebol-v11`.
+- 26/10: Escalação oficial num único campo, os dois times de frente (casa em cima, visitante embaixo). Sem formação, continua a lista. Cache do service worker: `futebol-v13`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
