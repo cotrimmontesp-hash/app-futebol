@@ -10,6 +10,8 @@ O escudo do time, quando a ESPN envia, aparece ao lado do nome na tabela, nos jo
 
 Toque num jogo para ver a escalação oficial. Se ainda não saiu, o app avisa e consulta de novo a cada 5 minutos enquanto essa tela estiver aberta.
 
+**Hoje**, em destaque na tela inicial, lista os jogos do dia no horário de Brasília: ao vivo (placar e minuto), os que ainda vão começar e os já encerrados. Com essa tela aberta, o placar atualiza sozinho.
+
 ## Rodar no computador
 Precisa do Node.js 18 ou mais novo (https://nodejs.org).
 ```

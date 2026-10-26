@@ -5,7 +5,7 @@ let competicoes = [];
 
 const fmtData = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, weekday: 'short', day: '2-digit', month: '2-digit' });
 const fmtDia = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, weekday: 'long', day: '2-digit', month: 'long' });
-const fmtHora = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const fmtHora = new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const CHAVE_FAV = 'futebol-favoritos';
@@ -20,8 +20,13 @@ function salvarFavoritos() {
 }
 let favoritos = lerFavoritos();
 let timerEscalacao = 0;
+let timerHoje = 0;
+let dadosHoje = null;
 function pararEscalacao() {
   if (timerEscalacao) { clearInterval(timerEscalacao); timerEscalacao = 0; }
+}
+function pararHoje() {
+  if (timerHoje) { clearInterval(timerHoje); timerHoje = 0; }
 }
 function ehFavorito(t) {
   return !!(t && (favoritos.has(t.time) || (t.origem && favoritos.has(t.origem))));
@@ -65,7 +70,8 @@ async function telaLista() {
   const resumo = n === 0 ? 'Nenhum time marcado' : n === 1 ? [...favoritos][0] : n + ' times';
   const bloco = (t, l) => `<h2 class="secao">${t}</h2><ul class="lista">${l.map(c =>
     `<li><a href="#/c/${c.id}/tabela"><strong>${esc(c.nome)}</strong><span>${esc(c.pais)}</span></a></li>`).join('')}</ul>`;
-  conteudo.innerHTML = `<ul class="lista"><li><a href="#/favoritos"><strong>★ Favoritos</strong><span>${esc(resumo)}</span></a></li></ul>`
+  conteudo.innerHTML = `<ul class="lista destaque"><li><a href="#/hoje"><strong>Hoje</strong><span>Placares ao vivo e jogos de hoje</span></a></li></ul>`
+    + `<ul class="lista"><li><a href="#/favoritos"><strong>★ Favoritos</strong><span>${esc(resumo)}</span></a></li></ul>`
     + bloco('Ligas nacionais', competicoes.filter(c => c.tipo === 'liga'))
     + bloco('Copas', competicoes.filter(c => c.tipo === 'copa'));
 }
@@ -92,14 +98,16 @@ function htmlTabela(d) {
   return aviso + grupos + (leg ? `<div class="card legenda">${leg}</div>` : '') + '<p class="msg" style="padding:4px">P = pontos · J = jogos · V/E/D = vitórias/empates/derrotas · SG = saldo de gols</p>';
 }
 
-function htmlJogos(lista, tipo, liga) {
+function htmlJogos(lista, tipo, liga, opcoes) {
   if (!lista.length) return `<p class="msg">${tipo === 'proximos' ? 'Nenhum jogo marcado nos próximos 2 meses.' : 'Nenhum resultado nos últimos 2 meses.'}</p>`;
+  const semDia = !!(opcoes && opcoes.semDia);
   migrarFavoritos(lista.flatMap(j => [j.casa, j.fora]));
   let html = '', diaAtual = '';
   for (const j of lista) {
     const dt = new Date(j.data);
     const dia = fmtDia.format(dt);
-    if (dia !== diaAtual) { if (diaAtual) html += '</div>'; html += `<h2 class="secao">${esc(dia)}</h2><div class="card">`; diaAtual = dia; }
+    if (semDia) { if (!diaAtual) html += '<div class="card">'; diaAtual = dia; }
+    else if (dia !== diaAtual) { if (diaAtual) html += '</div>'; html += `<h2 class="secao">${esc(dia)}</h2><div class="card">`; diaAtual = dia; }
     const lado = (t, cls) => {
       const nome = `<span>${esc(t.time)}</span>`;
       const marca = botaoEstrela(t);
@@ -167,6 +175,50 @@ async function telaEscalacao(liga, eventId) {
   await carregar(false);
 }
 
+function ordenarHoje(lista) {
+  return [...lista].sort((a, b) => {
+    const fa = ehFavorito(a.casa) || ehFavorito(a.fora) ? 0 : 1;
+    const fb = ehFavorito(b.casa) || ehFavorito(b.fora) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    return String(a.data).localeCompare(String(b.data));
+  });
+}
+function desenharHoje(d) {
+  const jogos = (d && d.jogos) || [];
+  migrarFavoritos(jogos.flatMap(j => [j.casa, j.fora]));
+  const aoVivo = ordenarHoje(jogos.filter(j => j.estado === 'in'));
+  const doDia = ordenarHoje(jogos.filter(j => j.estado === 'pre'));
+  const fim = ordenarHoje(jogos.filter(j => j.estado === 'post'));
+  if (!aoVivo.length && !doDia.length && !fim.length) {
+    conteudo.innerHTML = '<p class="msg">Nenhum jogo hoje.</p>';
+    return;
+  }
+  const bloco = (titulo, lista) => lista.length ? `<h2 class="secao">${titulo}</h2>${htmlJogos(lista, 'resultados', '', { semDia: true })}` : '';
+  conteudo.innerHTML = bloco('Ao vivo agora', aoVivo) + bloco('Hoje', doDia) + bloco('Encerrados hoje', fim);
+}
+async function telaHoje() {
+  const hash = '#/hoje';
+  $('#titulo').textContent = 'Hoje';
+  $('#voltar').hidden = false; $('#abas').hidden = true;
+  const carregar = async (silencioso) => {
+    if (location.hash !== hash) return;
+    try {
+      const d = await api('hoje');
+      if (location.hash !== hash) return;
+      dadosHoje = d;
+      desenharHoje(d);
+      pararHoje();
+      const vivo = (d.jogos || []).some(j => j.estado === 'in');
+      timerHoje = setInterval(() => carregar(true), vivo ? 30 * 1000 : 5 * 60 * 1000);
+    } catch (e) {
+      if (location.hash !== hash) return;
+      if (!silencioso) erro(e);
+    }
+  };
+  carregando();
+  await carregar(false);
+}
+
 async function telaFavoritos() {
   $('#titulo').textContent = 'Favoritos';
   $('#voltar').hidden = false; $('#abas').hidden = true;
@@ -201,10 +253,12 @@ async function telaFavoritos() {
 
 async function rota() {
   pararEscalacao();
+  pararHoje();
   const escM = location.hash.match(/^#\/c\/([a-z0-9._]+)\/escalacao\/(\d+)$/);
   const m = location.hash.match(/^#\/c\/([a-z0-9._]+)\/(tabela|resultados|proximos)$/);
   try {
-    if (location.hash === '#/favoritos') await telaFavoritos();
+    if (location.hash === '#/hoje') await telaHoje();
+    else if (location.hash === '#/favoritos') await telaFavoritos();
     else if (escM) await telaEscalacao(escM[1], escM[2]);
     else if (m) await telaCompeticao(m[1], m[2]);
     else await telaLista();
@@ -225,6 +279,7 @@ conteudo.addEventListener('click', e => {
     } else favoritos.add(nome);
     salvarFavoritos();
     if (location.hash === '#/favoritos') { rota(); return; }
+    if (location.hash === '#/hoje' && dadosHoje) { desenharHoje(dadosHoje); return; }
     document.querySelectorAll('.estrela').forEach(el => {
       if (el.dataset.time !== nome) return;
       const on = favoritos.has(nome);
