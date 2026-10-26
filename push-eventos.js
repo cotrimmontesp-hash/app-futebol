@@ -28,7 +28,58 @@ function snapshotJogo(j) {
     golsCasa: gols(j.casa && j.casa.gols),
     golsFora: gols(j.fora && j.fora.gols),
     escalacao: false,
+    incidentes: null,
   };
+}
+
+// keyEvents do summary. Cartão vermelho e segundo amarelo vêm os dois como "Red Card".
+// Pênalti só aparece com o resultado da cobrança (convertido ou perdido), nunca só "marcado".
+// Disputa de pênaltis (shootout) fica de fora: o fim de jogo já leva esse placar.
+function lerIncidentes(keyEvents) {
+  const lista = [];
+  for (const k of Array.isArray(keyEvents) ? keyEvents : []) {
+    if (!k || !k.type || k.shootout) continue;
+    const textoTipo = k.type.text || '';
+    const slug = k.type.type || '';
+    let tipo = '';
+    if (textoTipo === 'Red Card' || slug === 'red-card') tipo = 'vermelho';
+    else if (textoTipo === 'Penalty - Missed' || slug === 'penalty---missed') tipo = 'penalti-perdido';
+    else if (textoTipo === 'Penalty - Scored' || slug === 'penalty---scored') tipo = 'penalti';
+    else continue;
+    const atleta = k.participants && k.participants[0] && k.participants[0].athlete;
+    const nome = (atleta && (atleta.displayName || atleta.shortName)) || '';
+    const minuto = (k.clock && k.clock.displayValue) || '';
+    const teamId = k.team && k.team.id != null ? String(k.team.id) : '';
+    const timeBruto = (k.team && (k.team.displayName || k.team.shortDisplayName)) || '';
+    const id = k.id != null && String(k.id) ? String(k.id) : `${tipo}:${minuto}:${(atleta && atleta.id) || nome}`;
+    lista.push({
+      id, tipo, nome, minuto, teamId, timeBruto,
+      segundoAmarelo: tipo === 'vermelho' && /^Second yellow/i.test(k.text || ''),
+    });
+  }
+  return lista;
+}
+
+function completarIncidentes(lista, jogo, competitors, nomeDe) {
+  const times = Array.isArray(competitors) ? competitors : [];
+  return (Array.isArray(lista) ? lista : []).map(inc => {
+    const c = times.find(x => x && x.team && String(x.team.id) === inc.teamId);
+    const lado = c && c.homeAway === 'home' ? 'casa' : c && c.homeAway === 'away' ? 'fora' : '';
+    let time = lado && jogo && jogo[lado] && jogo[lado].time;
+    if (!time && nomeDe && c && c.team) {
+      const n = nomeDe(c.team);
+      time = n && n.time && n.time !== '?' ? n.time : '';
+    }
+    if (!time && nomeDe && inc.timeBruto) {
+      const n = nomeDe({ displayName: inc.timeBruto });
+      time = n && n.time && n.time !== '?' ? n.time : '';
+    }
+    if (!time) time = inc.timeBruto || '';
+    return {
+      id: inc.id, tipo: inc.tipo, nome: inc.nome, minuto: inc.minuto,
+      segundoAmarelo: !!inc.segundoAmarelo, lado, time,
+    };
+  });
 }
 
 function formatarMinuto(relogio) {
@@ -94,6 +145,21 @@ function diffJogo(prev, jogo) {
   return eventos;
 }
 
+function diffIncidentes(prevIds, jogo, lista) {
+  const ja = new Set(Array.isArray(prevIds) ? prevIds : []);
+  const k = chaveJogo(jogo);
+  const eventos = [];
+  for (const inc of lista || []) {
+    if (!inc || !inc.id || ja.has(inc.id)) continue;
+    eventos.push({
+      tipo: inc.tipo, tag: `${k}:${inc.tipo}:${inc.id}`, jogo,
+      nome: inc.nome, time: inc.time, minuto: inc.minuto,
+      ladoGol: inc.lado || '', segundoAmarelo: !!inc.segundoAmarelo,
+    });
+  }
+  return eventos;
+}
+
 function iconePara(jogo, nomes, ladoGol) {
   const favCasa = timeFavorito(jogo.casa, nomes);
   const favFora = timeFavorito(jogo.fora, nomes);
@@ -138,29 +204,45 @@ function textoNotificacao(ev, nomes) {
     title = `Fim de jogo. ${textoPlacar(j)}${pen}`;
   } else if (ev.tipo === 'escalacao') {
     title = `Escalação divulgada: ${textoConfronto(j)}`;
+  } else if (ev.tipo === 'vermelho' || ev.tipo === 'penalti' || ev.tipo === 'penalti-perdido') {
+    const quem = ev.nome && ev.time ? `${ev.nome} (${ev.time})` : (ev.nome || ev.time || textoConfronto(j));
+    const prefixo = ev.tipo === 'vermelho' ? 'Cartão vermelho!' : ev.tipo === 'penalti-perdido' ? 'Pênalti perdido!' : 'Pênalti convertido!';
+    title = `${prefixo} ${quem}${minuto ? ` aos ${minuto}` : ''}`;
+    if (ev.segundoAmarelo) body = competicao ? `Segundo amarelo · ${competicao}` : 'Segundo amarelo';
   }
   return { title, body, icon, url, tag: ev.tag };
 }
 
-function avaliarCiclo(memoria, jogos, escalacoes) {
+function avaliarCiclo(memoria, jogos, escalacoes, incidentes) {
   const mem = memoria && memoria.iniciado ? memoria : { iniciado: false, jogos: {}, avisados: {} };
   const primeiro = !mem.iniciado;
   const avisados = { ...mem.avisados };
   const proximos = { ...mem.jogos };
   const eventos = [];
   const mapaEsc = escalacoes || {};
+  const mapaInc = incidentes || {};
   for (const j of jogos) {
     const k = chaveJogo(j);
     const prev = mem.jogos[k];
     const snap = snapshotJogo(j);
     if (mapaEsc[k]) snap.escalacao = true;
     else if (prev && prev.escalacao) snap.escalacao = true;
+    const temLista = Object.prototype.hasOwnProperty.call(mapaInc, k) && Array.isArray(mapaInc[k]);
+    if (temLista) snap.incidentes = mapaInc[k].map(x => x && x.id).filter(Boolean);
+    else if (prev && Array.isArray(prev.incidentes)) snap.incidentes = prev.incidentes;
     proximos[k] = snap;
     if (primeiro || !prev) continue;
     for (const ev of diffJogo(prev, j)) {
       if (avisados[ev.tag]) continue;
       avisados[ev.tag] = true;
       eventos.push(ev);
+    }
+    if (temLista && Array.isArray(prev.incidentes)) {
+      for (const ev of diffIncidentes(prev.incidentes, j, mapaInc[k])) {
+        if (avisados[ev.tag]) continue;
+        avisados[ev.tag] = true;
+        eventos.push(ev);
+      }
     }
     if (snap.escalacao && !prev.escalacao) {
       const tag = `${k}:escalacao`;
@@ -182,4 +264,5 @@ function dentroDasProximasHoras(jogo, agoraMs, horas) {
 module.exports = {
   gols, chaveJogo, timeFavorito, jogoDoFavorito, snapshotJogo, formatarMinuto,
   autorDoGol, diffJogo, textoNotificacao, avaliarCiclo, dentroDasProximasHoras, iconePara,
+  lerIncidentes, completarIncidentes,
 };

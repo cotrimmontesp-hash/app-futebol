@@ -445,6 +445,29 @@ async function checarEscalacoes(jogos) {
   return mapa;
 }
 
+function competidoresDoSumario(d) {
+  const comps = d && d.header && d.header.competitions;
+  const c = Array.isArray(comps) ? comps[0] : null;
+  return (c && c.competitors) || [];
+}
+
+async function buscarIncidentes(jogos) {
+  const mem = (memoriaPush && memoriaPush.jogos) || {};
+  const mapa = {};
+  await Promise.all(jogos.map(async j => {
+    if (!j || (j.estado !== 'in' && j.estado !== 'post')) return;
+    const k = eventosPush.chaveJogo(j);
+    const prev = mem[k];
+    if (j.estado === 'post' && prev && prev.estado === 'post' && Array.isArray(prev.incidentes)) return;
+    try {
+      const d = await espn(`${ESPN}/site/v2/sports/soccer/${j.liga}/summary?event=${j.id}`, 60e3);
+      const lidos = eventosPush.lerIncidentes(d && d.keyEvents);
+      mapa[k] = eventosPush.completarIncidentes(lidos, j, competidoresDoSumario(d), nomeTime);
+    } catch { /* sem lista neste ciclo: não apaga o que já vimos */ }
+  }));
+  return mapa;
+}
+
 async function buscarAutor(ev) {
   const j = ev.jogo;
   try {
@@ -489,8 +512,9 @@ async function vigiar() {
     const nomes = new Set(inscricoes.flatMap(i => i.favoritos));
     const relevantes = (jogos || []).filter(j => eventosPush.jogoDoFavorito(j, nomes));
     const escalacoes = await checarEscalacoes(relevantes);
+    const incidentes = await buscarIncidentes(relevantes);
     const primeiro = !memoriaPush || !memoriaPush.iniciado;
-    const resultado = eventosPush.avaliarCiclo(memoriaPush, relevantes, escalacoes);
+    const resultado = eventosPush.avaliarCiclo(memoriaPush, relevantes, escalacoes, incidentes);
     memoriaPush = resultado.memoria;
     if (primeiro) return;
     if (resultado.eventos.length) await despachar(resultado.eventos);

@@ -52,6 +52,12 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Rota `/api/{liga}/artilheiros` (cache de 10 min) lê `statistics` da ESPN: `goalsLeaders` e `assistsLeaders`. Cada líder traz nome, time já traduzido, escudo, jogos e o número (gols ou assistências). A resposta não inclui foto nem posição do jogador.
 - Na tela da competição, a aba **Artilheiros** lista os 10 primeiros em gols e, abaixo, uma lista curta de 5 assistências. Se a ESPN não mandar líderes naquela competição, a aba some só nela.
 
+## Cartão e pênalti (etapa 11)
+- Nos jogos de favoritos ao vivo ou já encerrados hoje, o vigia lê o `summary` da ESPN (`keyEvents`), o mesmo payload que já busca o autor do gol. O scoreboard não traz pênalti perdido.
+- Cartão vermelho: evento `Red Card` (`red-card`), com jogador, time e minuto. O segundo amarelo chega nesse mesmo tipo; o texto do lance começa com "Second yellow card". Título: `Cartão vermelho! Fulano (Time) aos 63′`. No segundo amarelo, o corpo diz isso. Cartão só amarelo não avisa.
+- Pênalti: a ESPN não manda o momento em que o pênalti é marcado, antes da cobrança. Manda o resultado: `Penalty - Scored` (convertido) e `Penalty - Missed` (perdido), com jogador, time e minuto. Títulos: `Pênalti convertido! Fulano (Time) aos 32′` e `Pênalti perdido! Fulano (Time) aos 32′`. Cobrança de disputa de pênaltis (`shootout: true`) não gera esses avisos; o fim de jogo já traz o placar dos pênaltis. Um pênalti convertido também continua saindo como gol.
+- O mesmo lance não sai duas vezes: a tag usa o id do `keyEvent`, como o gol usa o placar. No primeiro ciclo depois de reiniciar, e na primeira vez que o jogo entra na memória, nada de aviso antigo. O front não mudou; o cache do service worker segue `futebol-v10`.
+
 ## Fora do MVP (não fazer agora)
 Login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -80,6 +86,7 @@ Login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Notificações push dos times favoritos (gol, escalação, início, intervalo, volta e fim). Sem as chaves VAPID, o botão fica oculto. Cache do service worker: `futebol-v8`.
 - 26/10: Brasileirão Série B (`bra.2`) na lista, na tabela, nos jogos, na escalação, na tela Hoje e nas notificações. Cache do service worker: `futebol-v9`.
 - 26/10: Aba Artilheiros em cada competição (top 10 de gols e 5 assistências). Sem dados, a aba fica oculta só nessa competição. Cache do service worker: `futebol-v10`.
+- 26/10: Notificações de cartão vermelho (inclusive segundo amarelo) e de pênalti convertido ou perdido nos jogos dos favoritos. A ESPN não manda o pênalti só marcado, antes da cobrança. Service worker segue `futebol-v10`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
