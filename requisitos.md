@@ -19,6 +19,11 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Sem entrada no mapa, o nome original é mantido. Vale para as 10 competições (ligas europeias, Champions, Libertadores e Sul-Americana).
 - Favorito antigo, gravado com o nome de antes da tradução, continua marcado: o app compara também esse nome (`origem`) e regrava o nome novo.
 
+## Escudos (etapa 5)
+- A API de tabela e de jogos repassa a URL do logo da ESPN no campo `escudo`.
+- Na tabela, nos jogos e em Favoritos, o escudo sai ao lado do nome (22 px, carregamento lazy, texto alternativo com o nome do time).
+- Sem URL, ou se a imagem falhar, o app mostra só o nome, sem ícone quebrado. Favoritos e a tradução dos nomes não mudam.
+
 ## Fora do MVP (não fazer agora)
 Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 
@@ -41,6 +46,7 @@ Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 - 26/10: Copa do Brasil incluída (`bra.copa_do_brazil`). Standings vem vazio; a aba Tabela mostra aviso de mata-mata. A rota da API passa a aceitar underscore no id.
 - 26/10: Favoritos no aparelho. Estrela na tabela e nos jogos; a opção Favoritos junta resultados e próximos de todas as competições. Cache do service worker: `futebol-v3`.
 - 26/10: Nomes usuais em português na tabela e nos jogos (mapa `TIMES`). Favorito salvo com o nome antigo da ESPN não se perde. Cache do service worker: `futebol-v4`.
+- 26/10: Escudos dos times na tabela, nos jogos e em Favoritos (`escudo` na API). Imagem que falha some e fica o nome. Cache do service worker: `futebol-v5`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).

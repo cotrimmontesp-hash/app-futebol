@@ -86,6 +86,13 @@ function nomeTime(team) {
   const time = TIMES[bruto] || bruto;
   return time === bruto ? { time } : { time, origem: bruto };
 }
+function escudoUrl(team) {
+  if (!team) return '';
+  if (team.logo) return team.logo;
+  const lista = Array.isArray(team.logos) ? team.logos : [];
+  const logo = lista.find(l => l && l.href);
+  return logo ? logo.href : '';
+}
 
 const cache = new Map();
 async function espn(url, ttlMs) {
@@ -125,7 +132,7 @@ async function tabela(id) {
     linhas: entradas(g).map(e => ({
       pos: Number(stat(e, 'rank')) || null,
       ...nomeTime(e.team),
-      escudo: e.team.logos && e.team.logos[0] ? e.team.logos[0].href : '',
+      escudo: escudoUrl(e.team),
       j: stat(e, 'gamesPlayed'), v: stat(e, 'wins'), e: stat(e, 'ties'), d: stat(e, 'losses'),
       gp: stat(e, 'pointsFor'), gc: stat(e, 'pointsAgainst'), sg: stat(e, 'pointDifferential'), pts: stat(e, 'points'),
       nota: e.note ? { cor: e.note.color, texto: NOTAS[e.note.description] || e.note.description } : null,
@@ -164,7 +171,7 @@ function jogo(ev) {
     const t = c.competitors.find(x => x.homeAway === h) || {};
     return {
       ...nomeTime(t.team),
-      escudo: t.team ? t.team.logo : '',
+      escudo: escudoUrl(t.team),
       gols: t.score, penaltis: t.shootoutScore ?? null, venceu: !!t.winner,
     };
   };
