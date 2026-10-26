@@ -8,8 +8,14 @@ App sobre futebol: tabela, jogos, resultados e próximos jogos das principais co
 - Telas: 1) lista de competições; 2) por competição: abas Tabela, Resultados, Próximos jogos.
 - Competições: Brasileirão Série A, Copa do Brasil, Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Libertadores, Sul-Americana (10 no total).
 
+## Favoritos (etapa 3)
+- Estrela ao lado de cada time na tabela e nas listas de jogos. Toque marca ou desmarca.
+- Salvos só no `localStorage` do aparelho (chave `futebol-favoritos`), pelo nome curto do time. Sem conta e sem gravar no servidor.
+- Opção **Favoritos** na tela inicial: resultados e próximos jogos, de todas as competições, apenas dos times marcados. Sem nenhum favorito, a tela explica para tocar na estrela.
+- Fora desta etapa: notificações e login.
+
 ## Fora do MVP (não fazer agora)
-Notificações, favoritos, login, estatísticas de jogadores, Android/iOS nativo.
+Notificações, login, estatísticas de jogadores, Android/iOS nativo.
 
 ## Fonte de dados (decidido em 25/10/2026)
 - **Escolhida: API pública não oficial da ESPN** (`site.api.espn.com`), **sem chave de API**.
@@ -28,6 +34,7 @@ Notificações, favoritos, login, estatísticas de jogadores, Android/iOS nativo
 - 25/10 21:35: Paulo confirmou MVP e pediu incluir Libertadores e Sul-Americana. Construção iniciada.
 - 25/10 ~21:47: MVP pronto e testado na box (porta 3000). Teste: as 9 competições carregaram Tabela, Resultados e Próximos jogos (via curl e renderização com jsdom). Nenhuma falhou.
 - 26/10: Copa do Brasil incluída (`bra.copa_do_brazil`). Standings vem vazio; a aba Tabela mostra aviso de mata-mata. A rota da API passa a aceitar underscore no id.
+- 26/10: Favoritos no aparelho. Estrela na tabela e nos jogos; a opção Favoritos junta resultados e próximos de todas as competições. Cache do service worker: `futebol-v3`.
 
 ## Próximos passos (a decidir com Paulo)
 - Publicar online (não publicado ainda; ver README.md para opções gratuitas).
