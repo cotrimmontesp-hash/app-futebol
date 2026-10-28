@@ -422,18 +422,44 @@ function ymdBrasilia(date) {
   const p = tipo => partes.find(x => x.type === tipo).value;
   return `${p('year')}${p('month')}${p('day')}`;
 }
-function diaBrasilia(date) {
-  const ymd = ymdBrasilia(date);
+function isoDeYmd(ymd) {
   return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+}
+function diaBrasilia(date) {
+  return isoDeYmd(ymdBrasilia(date));
 }
 function deslocarYmd(ymd, dias) {
   const dt = new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8) + dias, 12));
   return `${dt.getUTCFullYear()}${String(dt.getUTCMonth() + 1).padStart(2, '0')}${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
-async function hoje() {
+function dataCalendarioValida(ano, mes, dia) {
+  const dt = new Date(Date.UTC(ano, mes - 1, dia));
+  return dt.getUTCFullYear() === ano && dt.getUTCMonth() === mes - 1 && dt.getUTCDate() === dia;
+}
+// `data` opcional de /api/hoje. Ausente = hoje. Janela inclusiva: 7 dias antes até 14 depois, em Brasília.
+function interpretarDataConsulta(bruto) {
+  if (bruto == null) return { ymd: null };
+  const s = String(bruto).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/) || s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return { erro: 'Data inválida. Use uma data real no formato YYYY-MM-DD ou YYYYMMDD.' };
+  const ano = Number(m[1]);
+  const mes = Number(m[2]);
+  const dia = Number(m[3]);
+  if (!dataCalendarioValida(ano, mes, dia)) {
+    return { erro: 'Data inválida. Use uma data real no formato YYYY-MM-DD ou YYYYMMDD.' };
+  }
+  const ymd = m[1] + m[2] + m[3];
   const hojeYmd = ymdBrasilia(new Date());
-  const alvo = diaBrasilia(new Date());
+  if (ymd < deslocarYmd(hojeYmd, -7) || ymd > deslocarYmd(hojeYmd, 14)) {
+    return { erro: 'Data fora do intervalo permitido: de 7 dias antes a 14 dias depois de hoje (horário de Brasília).' };
+  }
+  return { ymd };
+}
+async function hoje(ymdPedido) {
+  const hojeYmd = ymdPedido || ymdBrasilia(new Date());
+  const alvo = ymdPedido ? isoDeYmd(ymdPedido) : diaBrasilia(new Date());
   const datas = [-1, 0, 1].map(d => deslocarYmd(hojeYmd, d));
+  // O cache da ESPN é a URL; dates=YYYYMMDD muda a chave, então um dia não reaproveita o placar de outro.
   const tarefas = COMPETICOES.flatMap(c => datas.map(data => {
     const url = `${ESPN}/site/v2/sports/soccer/${c.id}/scoreboard?dates=${data}&limit=100`;
     return espn(url, 30e3).then(r => ({ c, events: (r && r.events) || [] })).catch(() => null);
@@ -452,7 +478,7 @@ async function hoje() {
     }
   }
   const jogosLista = [...mapa.values()].sort((a, b) => String(a.data).localeCompare(String(b.data)));
-  return { jogos: jogosLista, atualizadoEm: new Date().toISOString() };
+  return { jogos: jogosLista, atualizadoEm: new Date().toISOString(), data: alvo };
 }
 
 function numeroEstatistica(lista, nome) {
@@ -752,7 +778,11 @@ async function tratar(req, res) {
       return json(res, r.code, r.corpo);
     }
     if (p === '/api/competicoes') return json(res, 200, COMPETICOES);
-    if (p === '/api/hoje') return json(res, 200, await hoje());
+    if (p === '/api/hoje') {
+      const consulta = interpretarDataConsulta(url.searchParams.get('data'));
+      if (consulta.erro) return json(res, 400, { erro: consulta.erro });
+      return json(res, 200, await hoje(consulta.ymd));
+    }
     const m = p.match(/^\/api\/([a-z0-9._]+)\/(tabela|jogos|artilheiros)$/);
     if (m) {
       if (!IDS.has(m[1])) return json(res, 404, { erro: 'Competição não encontrada' });
